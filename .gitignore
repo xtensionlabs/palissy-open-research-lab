@@ -1,0 +1,42 @@
+# Secrets — a leaked key in the public repo is a submission-blocking bug
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Local state
+data/*
+!data/.gitkeep
+*.db
+*.sqlite3
+.cache/
+
+# Generated notebooks (keep the directory, not run output)
+notebooks/*
+!notebooks/.gitkeep
+
+# Frontend
+node_modules/
+.next/
+frontend/out/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Claude files
+CLAUDE.md
+CLAUDE.local.md
+**/*.claude
+.claude/
