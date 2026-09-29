@@ -1,7 +1,8 @@
 import pytest
 
 from palissy.sandbox import LocalExecutor
-from palissy.stages.hypothesis import _extract_json, format_literature
+from palissy.stages.common import extract_json as _extract_json
+from palissy.stages.hypothesis import format_literature
 
 
 def test_extract_json_from_wrapped_text():
@@ -27,3 +28,9 @@ async def test_local_executor_runs_and_captures_output():
 async def test_local_executor_reports_failure_and_timeout():
     assert (await LocalExecutor().run("raise SystemExit(3)")).exit_code == 3
     assert (await LocalExecutor().run("import time; time.sleep(5)", timeout=1)).exit_code == 124
+
+
+def test_script_result_takes_last_result_line():
+    from palissy.stages.analysis import script_result
+    assert script_result("x\nRESULT: supports\nRESULT: inconclusive\n") == "inconclusive"
+    assert script_result("no result here") is None

@@ -34,6 +34,13 @@ Be specific: name the exact tool or model.
 - Ultra returned parseable JSON when told "JSON only", but Palissy still extracts the outermost
   `{...}` defensively. Super followed the "single ```python block, end with RESULT:" instruction.
 - Nano's output began with a blank line; stripped in the wrapper.
+- Instruction-following limits: told "under 30 seconds", Super wrote a simulation (200k generations x
+  2000 loci) that timed out at 60s. Tightening the prompt plus one bounded repair pass fixed it.
+- Ultra as analyst overstated a result: the script printed `RESULT: inconclusive` with all-zero output,
+  yet the analysis said "refutes". Palissy now caps the verdict at the script's own RESULT line.
+- Ultra as reflector recommended 10^5-10^6 generations, contradicting the runtime budget until the
+  budget was added to its prompt. Reflection needs the same hard constraints as design.
+- Full pipeline cycle with Ultra + Super + Nano (7 stages, 3 human gates): $0.0111.
 
 ## Base vs Fast flavors
 

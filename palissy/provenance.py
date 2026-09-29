@@ -29,14 +29,20 @@ class ProvenanceRecord:
 class ProvenanceLog:
     """In-memory log, optionally mirrored to a JSONL file. SQLite comes in Milestone 2."""
 
-    def __init__(self, path: str | Path | None = None):
+    def __init__(self, path: str | Path | None = None, *, store=None,
+                 project_id: str | None = None):
         self.records: list[ProvenanceRecord] = []
         self.path = Path(path) if path else None
+        self.store = store
+        self.project_id = project_id
+        self.cycle = 1
         if self.path:
             self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def add(self, record: ProvenanceRecord) -> ProvenanceRecord:
         self.records.append(record)
+        if self.store and self.project_id:
+            self.store.add_record(record, self.project_id, self.cycle)
         if self.path:
             with self.path.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(asdict(record), default=str) + "\n")

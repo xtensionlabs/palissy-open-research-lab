@@ -18,7 +18,7 @@ class LocalExecutor:
 
     async def run(self, code: str, *, timeout: int = 120) -> ExecResult:
         start = timed()
-        with tempfile.TemporaryDirectory(prefix="palissy_") as tmp:
+        with tempfile.TemporaryDirectory(prefix="palissy_", ignore_cleanup_errors=True) as tmp:
             script = Path(tmp) / "experiment.py"
             script.write_text(code, encoding="utf-8")
             proc = await asyncio.create_subprocess_exec(
@@ -30,6 +30,7 @@ class LocalExecutor:
                 code_ = proc.returncode
             except asyncio.TimeoutError:
                 proc.kill()
+                await proc.wait()  # release the cwd handle so Windows can delete the temp dir
                 out, err, code_ = b"", f"timeout after {timeout}s".encode(), 124
         return ExecResult(
             stdout=out.decode(errors="replace"), stderr=err.decode(errors="replace"),
