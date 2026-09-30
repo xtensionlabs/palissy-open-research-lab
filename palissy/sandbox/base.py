@@ -6,6 +6,8 @@ from typing import Protocol
 
 from ..provenance import ProvenanceLog, ProvenanceRecord
 
+DEFAULT_TIMEOUT_S = 120
+
 
 @dataclass
 class ExecResult:
@@ -23,7 +25,7 @@ class ExecResult:
 class Executor(Protocol):
     name: str
 
-    async def run(self, code: str, *, timeout: int = 120) -> ExecResult: ...
+    async def run(self, code: str, *, timeout: int = DEFAULT_TIMEOUT_S) -> ExecResult: ...
 
     async def fork(self, branch: str) -> None:
         """Start a variant branch from the current checkpoint."""

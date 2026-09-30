@@ -42,5 +42,5 @@ CLAUDE.local.md
 .claude/
 
 # Third-party reference screenshots and browser tool output (not ours to publish)
-mockups/_reference/
+mockups/
 .playwright-mcp/

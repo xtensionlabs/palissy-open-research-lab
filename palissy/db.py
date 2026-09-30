@@ -16,7 +16,7 @@ from .provenance import ProvenanceRecord
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY, question TEXT NOT NULL, status TEXT NOT NULL,
-    created_at REAL NOT NULL, notebook_path TEXT, error TEXT
+    created_at REAL NOT NULL, notebook_path TEXT, error TEXT, state TEXT
 );
 CREATE TABLE IF NOT EXISTS records (
     id TEXT PRIMARY KEY, project_id TEXT NOT NULL, cycle INTEGER NOT NULL,
@@ -50,9 +50,10 @@ class Store:
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
         cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(projects)")}
-        if "error" not in cols:  # databases created before the error column existed
-            self.conn.execute("ALTER TABLE projects ADD COLUMN error TEXT")
-            self.conn.commit()
+        for col in ("error", "state"):  # databases created before these columns existed
+            if col not in cols:
+                self.conn.execute(f"ALTER TABLE projects ADD COLUMN {col} TEXT")
+        self.conn.commit()
 
     def create_project(self, question: str) -> str:
         pid = uuid.uuid4().hex[:8]
@@ -72,6 +73,12 @@ class Store:
         if notebook_path:
             self.conn.execute("UPDATE projects SET notebook_path=? WHERE id=?",
                               (notebook_path, pid))
+        self.conn.commit()
+
+    def save_state(self, pid: str, state: dict) -> None:
+        """Snapshot of the current cycle (hypothesis, code, verdict, lessons...) for the UI."""
+        self.conn.execute("UPDATE projects SET state=? WHERE id=?",
+                          (json.dumps(state, default=str), pid))
         self.conn.commit()
 
     def get_project(self, pid: str) -> sqlite3.Row | None:

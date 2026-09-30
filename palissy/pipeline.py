@@ -6,7 +6,7 @@ Gates sit at hypothesis, experiment design (before anything executes), and the s
 Every model/tool call and every human decision lands in the provenance log.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Awaitable, Callable
 
@@ -33,6 +33,8 @@ class PipelineAborted(RuntimeError):
 @dataclass
 class CycleState:
     question: str
+    stage: str = "literature"
+    data_source: str = "simulated"  # experiments are pure simulations (no external datasets)
     lessons_before: list[str] = field(default_factory=list)
     lessons_after: list[str] = field(default_factory=list)
     human_notes: list[str] = field(default_factory=list)
@@ -73,6 +75,9 @@ class Pipeline:
         self.gate, self.store, self.log = gate, store, log
         self.notebook_dir = notebook_dir
 
+    def _save(self, s: CycleState) -> None:
+        self.store.save_state(self.log.project_id, asdict(s))
+
     async def _decide(self, stage: str, title: str, proposal: dict, parent_id: str) -> Decision:
         d = await self.gate.review(stage, title, proposal)
         self.store.add_decision(self.log.project_id, self.log.cycle, stage, proposal,
@@ -98,6 +103,7 @@ class Pipeline:
                 state.human_notes.append(d.payload)
             elif d.action == "reject":
                 state.human_notes.append(f"Rejected previous {stage}: {d.payload or 'no reason'}")
+            self._save(state)
         raise PipelineAborted(f"No approved {stage} after {MAX_ATTEMPTS} attempts")
 
     # --- stages -------------------------------------------------------------------------
@@ -207,16 +213,22 @@ class Pipeline:
 
     async def run(self, question: str) -> CycleState:
         s = CycleState(question=question, lessons_before=self.store.kv_get(LESSONS_KEY, []))
+        stages = [("literature", self.literature_stage), ("hypothesis", self.hypothesis_stage),
+                  ("experiment_design", self.design_stage), ("execution", self.execution_stage),
+                  ("analysis", self.analysis_stage), ("reflection", self.reflection_stage),
+                  ("notebook", self._notebook_async)]
         try:
-            await self.literature_stage(s)
-            await self.hypothesis_stage(s)
-            await self.design_stage(s)
-            await self.execution_stage(s)
-            await self.analysis_stage(s)
-            await self.reflection_stage(s)
-            self.notebook_stage(s)
+            for name, stage in stages:
+                s.stage = name
+                self._save(s)
+                await stage(s)
+            s.stage = "done"
+            self._save(s)
         except Exception:
             self.store.update_project(self.log.project_id, status="failed")
             raise
         self.store.update_project(self.log.project_id, status="done")
         return s
+
+    async def _notebook_async(self, s: CycleState) -> None:
+        self.notebook_stage(s)

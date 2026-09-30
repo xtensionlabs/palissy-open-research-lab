@@ -174,3 +174,39 @@ async def test_resilient_executor_degrades_and_labels_the_backend():
     r = await ex.run("print(1)")
     assert r.backend == "local-fallback" and ex.degraded
     await ex.fork("b")  # no raise once degraded
+
+
+def test_state_snapshot_tracks_stage_and_content(client):
+    pid = client.post("/projects", json=Q).json()["id"]
+    g = next_gate(client, pid)
+    p = client.get(f"/projects/{pid}").json()
+    assert p["state"]["stage"] == "hypothesis" and p["state"]["literature_summary"]
+    assert decide(client, pid, g, "approve").status_code == 200
+    g2 = next_gate(client, pid, g["id"])
+    assert client.get(f"/projects/{pid}").json()["state"]["hypothesis"]  # approved, persisted
+    assert decide(client, pid, g2, "approve").status_code == 200
+    g3 = next_gate(client, pid, g2["id"])
+    assert decide(client, pid, g3, "approve").status_code == 200
+    done = wait_for(lambda: (x := client.get(f"/projects/{pid}").json())["status"] == "done" and x)
+    st = done["state"]
+    assert st["stage"] == "done" and st["verdict"] == "supports"
+    assert st["data_source"] == "simulated" and st["lessons_after"] == ["keep runs short"]
+
+
+def test_project_list_omits_heavy_state_but_detail_has_it(client):
+    pid = client.post("/projects", json=Q).json()["id"]
+    next_gate(client, pid)
+    assert "state" not in client.get("/projects").json()[0]
+    assert "state" in client.get(f"/projects/{pid}").json()
+
+
+def test_routing_endpoint_explains_every_stage(client):
+    r = client.get("/routing").json()
+    stages = {s["stage"]: s for s in r["stages"]}
+    assert stages["hypothesis"]["flavor"] == "ultra" and stages["hypothesis"]["reason"]
+    assert stages["literature_summary"]["price_in"] < stages["hypothesis"]["price_in"]
+
+
+def test_health_reports_where_code_will_run(client):
+    h = client.get("/health").json()
+    assert h["ok"] and h["executor"] in ("contree", "local") and h["timeout_s"] > 0

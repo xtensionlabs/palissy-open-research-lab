@@ -90,9 +90,14 @@ def create_app(store: Store | None = None, factory: PipelineFactory | None = Non
             raise HTTPException(404, "project not found")
         return dict(row)
 
-    def summary(row: dict) -> dict:
-        return {**row, "cost_usd": store.project_cost(row["id"]),
-                "pending_gate": store.pending_gate(row["id"])}
+    def summary(row: dict, with_state: bool = True) -> dict:
+        row = dict(row)
+        raw = row.pop("state", None)
+        out = {**row, "cost_usd": store.project_cost(row["id"]),
+               "pending_gate": store.pending_gate(row["id"])}
+        if with_state:
+            out["state"] = json.loads(raw) if raw else None
+        return out
 
     async def run_project(pid: str, question: str, executor_kind: str) -> None:
         log = ProvenanceLog(f"data/provenance_{pid}.jsonl", store=store, project_id=pid)
@@ -117,7 +122,7 @@ def create_app(store: Store | None = None, factory: PipelineFactory | None = Non
 
     @app.get("/projects")
     async def list_projects() -> list[dict]:
-        return [summary(dict(r)) for r in store.list_projects()]
+        return [summary(dict(r), with_state=False) for r in store.list_projects()]
 
     @app.get("/projects/{pid}")
     async def get_project(pid: str) -> dict:
@@ -198,12 +203,26 @@ def create_app(store: Store | None = None, factory: PipelineFactory | None = Non
                               "cost_usd": store.project_cost(p["id"])}
                              for p in store.list_projects()]}
 
+    @app.get("/routing")
+    async def routing() -> dict:
+        from .models import PRICES_PER_M, ROUTING_REASONS, STAGE_POLICY
+        return {"stages": [
+            {"stage": stage, "flavor": flavor.value, "reason": ROUTING_REASONS[stage],
+             "price_in": PRICES_PER_M[flavor][0], "price_out": PRICES_PER_M[flavor][1]}
+            for stage, flavor in STAGE_POLICY.items()],
+            "unit": "USD per 1M tokens"}
+
     @app.get("/strategy")
     async def strategy() -> dict:
         return {"lessons": store.kv_get(LESSONS_KEY, [])}
 
     @app.get("/health")
     async def health() -> dict:
-        return {"ok": True, "running": len(tasks)}
+        from .sandbox.base import DEFAULT_TIMEOUT_S
+        from .sandbox.contree import BASE_TAG
+        return {"ok": True, "running": len(tasks), "executor": executor_default,
+                "image": BASE_TAG if executor_default == "contree" else None,
+                "timeout_s": DEFAULT_TIMEOUT_S,
+                "local_fallback": os.environ.get("PALISSY_ALLOW_LOCAL_FALLBACK") == "1"}
 
     return app

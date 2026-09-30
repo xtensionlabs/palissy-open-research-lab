@@ -34,6 +34,17 @@ STAGE_POLICY: dict[str, Flavor] = {
     "notebook": Flavor.NANO,
 }
 
+# Why each stage gets the model it does, in plain words (shown in the UI's cost view).
+ROUTING_REASONS: dict[str, str] = {
+    "literature_summary": "Summarising sources is light work, so the smallest model is enough.",
+    "hypothesis": "Proposing a testable idea is the hardest step, so it gets the deepest model.",
+    "experiment_design": "Writing runnable code needs a dependable coder, not the priciest thinker.",
+    "code_generation": "Fixing a failed script is code work, so it stays on the code model.",
+    "analysis": "Reading a result against its hypothesis needs care but not heavy reasoning.",
+    "reflection": "Reflection rewrites the strategy for every future run, so depth pays off.",
+    "notebook": "Assembling the record is mechanical, so the smallest model is enough.",
+}
+
 # USD per 1M tokens (input, output), copied from the Token Factory console. The /v1/models
 # endpoint returns no pricing, so re-check this table against the console before the demo.
 PRICES_PER_M: dict[Flavor, tuple[float, float]] = {

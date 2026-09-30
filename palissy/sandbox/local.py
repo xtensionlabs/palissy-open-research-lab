@@ -10,13 +10,13 @@ import sys
 import tempfile
 from pathlib import Path
 
-from .base import ExecResult, timed
+from .base import DEFAULT_TIMEOUT_S, ExecResult, timed
 
 
 class LocalExecutor:
     name = "local-fallback"
 
-    async def run(self, code: str, *, timeout: int = 120) -> ExecResult:
+    async def run(self, code: str, *, timeout: int = DEFAULT_TIMEOUT_S) -> ExecResult:
         start = timed()
         with tempfile.TemporaryDirectory(prefix="palissy_", ignore_cleanup_errors=True) as tmp:
             script = Path(tmp) / "experiment.py"

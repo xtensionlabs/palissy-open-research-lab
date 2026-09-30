@@ -14,7 +14,7 @@ import asyncio
 import tempfile
 from pathlib import Path
 
-from .base import ExecResult, timed
+from .base import DEFAULT_TIMEOUT_S, ExecResult, timed
 
 PUBLIC_IMAGE = "tag:python:3.12"
 BASE_TAG = "palissy/base/python:3.12-numpy"
@@ -68,7 +68,7 @@ class ContreeExecutor:
                     raise ContreeError(f"contree {' '.join(args)} failed: {err.strip()}")
         self._ready = True
 
-    async def run(self, code: str, *, timeout: int = 120) -> ExecResult:
+    async def run(self, code: str, *, timeout: int = DEFAULT_TIMEOUT_S) -> ExecResult:
         await self._ensure_session()
         start = timed()
         with tempfile.TemporaryDirectory(prefix="palissy_", ignore_cleanup_errors=True) as tmp:
