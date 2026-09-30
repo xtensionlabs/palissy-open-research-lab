@@ -16,7 +16,7 @@ from .provenance import ProvenanceRecord
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS projects (
     id TEXT PRIMARY KEY, question TEXT NOT NULL, status TEXT NOT NULL,
-    created_at REAL NOT NULL, notebook_path TEXT
+    created_at REAL NOT NULL, notebook_path TEXT, error TEXT
 );
 CREATE TABLE IF NOT EXISTS records (
     id TEXT PRIMARY KEY, project_id TEXT NOT NULL, cycle INTEGER NOT NULL,
@@ -29,6 +29,12 @@ CREATE TABLE IF NOT EXISTS decisions (
     proposal TEXT NOT NULL, action TEXT NOT NULL, payload TEXT, ts REAL NOT NULL,
     FOREIGN KEY (project_id) REFERENCES projects(id)
 );
+CREATE TABLE IF NOT EXISTS gates (
+    id TEXT PRIMARY KEY, project_id TEXT NOT NULL, cycle INTEGER NOT NULL, stage TEXT NOT NULL,
+    title TEXT NOT NULL, proposal TEXT NOT NULL, status TEXT NOT NULL,
+    created_at REAL NOT NULL, resolved_at REAL,
+    FOREIGN KEY (project_id) REFERENCES projects(id)
+);
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_records_project ON records(project_id, ts);
 """
@@ -38,9 +44,15 @@ class Store:
     def __init__(self, path: str | Path):
         if str(path) != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(str(path))
+        # Used only from the asyncio event loop; check_same_thread=False lets test clients
+        # and uvicorn's loop thread share it.
+        self.conn = sqlite3.connect(str(path), check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
+        cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(projects)")}
+        if "error" not in cols:  # databases created before the error column existed
+            self.conn.execute("ALTER TABLE projects ADD COLUMN error TEXT")
+            self.conn.commit()
 
     def create_project(self, question: str) -> str:
         pid = uuid.uuid4().hex[:8]
@@ -52,9 +64,11 @@ class Store:
         return pid
 
     def update_project(self, pid: str, *, status: str | None = None,
-                       notebook_path: str | None = None) -> None:
+                       notebook_path: str | None = None, error: str | None = None) -> None:
         if status:
             self.conn.execute("UPDATE projects SET status=? WHERE id=?", (status, pid))
+        if error:
+            self.conn.execute("UPDATE projects SET error=? WHERE id=?", (error, pid))
         if notebook_path:
             self.conn.execute("UPDATE projects SET notebook_path=? WHERE id=?",
                               (notebook_path, pid))
@@ -102,6 +116,58 @@ class Store:
         rows = self.conn.execute(
             "SELECT * FROM decisions WHERE project_id=? ORDER BY ts", (project_id,)).fetchall()
         return [dict(r) for r in rows]
+
+    # --- gates: pending human decisions, persisted so a page refresh can find them ---------
+
+    def create_gate(self, project_id: str, cycle: int, stage: str, title: str,
+                    proposal: dict) -> str:
+        gid = uuid.uuid4().hex[:12]
+        self.conn.execute(
+            "INSERT INTO gates (id, project_id, cycle, stage, title, proposal, status, "
+            "created_at) VALUES (?,?,?,?,?,?,?,?)",
+            (gid, project_id, cycle, stage, title, json.dumps(proposal, default=str),
+             "pending", time.time()))
+        self.conn.commit()
+        return gid
+
+    def get_gate(self, gate_id: str) -> dict | None:
+        row = self.conn.execute("SELECT * FROM gates WHERE id=?", (gate_id,)).fetchone()
+        return self._gate(row) if row else None
+
+    def pending_gate(self, project_id: str) -> dict | None:
+        row = self.conn.execute(
+            "SELECT * FROM gates WHERE project_id=? AND status='pending' "
+            "ORDER BY created_at DESC LIMIT 1", (project_id,)).fetchone()
+        return self._gate(row) if row else None
+
+    def resolve_gate(self, gate_id: str, status: str = "resolved") -> None:
+        self.conn.execute("UPDATE gates SET status=?, resolved_at=? WHERE id=?",
+                          (status, time.time(), gate_id))
+        self.conn.commit()
+
+    def interrupt_running(self) -> int:
+        """On startup: runs whose process died can never finish; make that visible."""
+        cur = self.conn.execute(
+            "UPDATE projects SET status='interrupted', error='server restarted mid-run' "
+            "WHERE status='running'")
+        self.conn.execute("UPDATE gates SET status='abandoned' WHERE status='pending'")
+        self.conn.commit()
+        return cur.rowcount
+
+    def cost_by_model(self, project_id: str | None = None) -> list[dict]:
+        where, args = ("WHERE project_id=?", (project_id,)) if project_id else ("", ())
+        rows = self.conn.execute(
+            f"SELECT COALESCE(model,'(tool)') AS model, kind, COUNT(*) AS calls, "
+            f"SUM(tokens_in) AS tokens_in, SUM(tokens_out) AS tokens_out, "
+            f"SUM(cost_usd) AS cost_usd, SUM(latency_s) AS latency_s FROM records {where} "
+            f"GROUP BY model, kind ORDER BY cost_usd DESC", args).fetchall()
+        return [dict(r) for r in rows]
+
+    @staticmethod
+    def _gate(row) -> dict:
+        d = dict(row)
+        d["proposal"] = json.loads(d["proposal"])
+        return d
 
     def kv_get(self, key: str, default=None):
         row = self.conn.execute("SELECT value FROM kv WHERE key=?", (key,)).fetchone()

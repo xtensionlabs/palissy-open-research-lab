@@ -40,3 +40,7 @@ CLAUDE.md
 CLAUDE.local.md
 **/*.claude
 .claude/
+
+# Third-party reference screenshots and browser tool output (not ours to publish)
+mockups/_reference/
+.playwright-mcp/

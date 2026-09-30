@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Palissy · Project 603c3237 · Field notebook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Hanken+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FCFCF8;
+  --paper-2:#F6F7EC;
+  --sage:#F3F6E4;
+  --sage-edge:#DDE5BF;
+  --ink:#173A43;
+  --teal-deep:#083D44;
+  --teal:#026370;
+  --muted:#4B666C;
+  --rule:#D9DFCB;
+  --rule-strong:#B7C3A8;
+  --lime:#E5FF97;
+  --lime-deep:#C9E85A;
+  --ochre:#7A4A0C;
+  --madder:#8A2F3C;
+  --white:#fff;
+
+  --serif:"Newsreader","Source Serif 4",Georgia,"Times New Roman",serif;
+  --sans:"Hanken Grotesk","Segoe UI",system-ui,sans-serif;
+  --mono:"DM Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
+
+  /* spacing scale */
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--s7:48px;--s8:72px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+html{scroll-behavior:smooth;scroll-padding-top:24px}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:15px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--teal)}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px;border-radius:2px}
+.num,.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.tnum{font-variant-numeric:tabular-nums lining-nums}
+.sc{font-family:var(--sans);font-size:11.5px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ============ LAYOUT ============ */
+.shell{
+  display:grid;
+  grid-template-columns:232px minmax(0,1fr) 300px;
+  max-width:1520px;margin:0 auto;min-height:100vh;
+}
+.index{
+  position:sticky;top:0;align-self:start;height:100vh;
+  padding:var(--s6) var(--s5) var(--s5) var(--s6);
+  display:flex;flex-direction:column;gap:var(--s5);
+  border-right:1px solid var(--rule);overflow:auto;
+}
+.brand{display:flex;align-items:center;gap:var(--s2);font-family:var(--serif);font-size:24px;font-weight:600;color:var(--teal-deep);letter-spacing:-.01em;text-decoration:none}
+.brand svg{flex:none}
+.projcard{font-size:13px;color:var(--muted);line-height:1.6}
+.projcard .pid{font-family:var(--mono);font-size:13px;color:var(--teal-deep)}
+.status{display:inline-flex;align-items:center;gap:6px;font-weight:600;color:var(--teal-deep)}
+.status i{width:8px;height:8px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 rgba(2,99,112,.5);animation:pulse 2s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 7px rgba(2,99,112,0)}100%{box-shadow:0 0 0 0 rgba(2,99,112,0)}}
+.projcard dl{margin:var(--s2) 0 0;display:grid;grid-template-columns:auto 1fr;gap:2px 10px}
+.projcard dt{color:var(--muted)}
+.projcard dd{margin:0;text-align:right;color:var(--ink);font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+
+.idx-label{margin:0 0 var(--s2)}
+.stages{list-style:none;margin:0;padding:0;position:relative}
+.stages svg.spine{position:absolute;left:0;top:0;width:24px;height:100%;overflow:visible;pointer-events:none}
+.stages li{height:44px;position:relative}
+.stages a{
+  display:flex;align-items:center;height:100%;padding-left:36px;text-decoration:none;
+  color:var(--muted);font-size:14px;position:relative
+}
+.stages a .t{padding:2px 6px;margin-left:-6px;border-radius:2px;transition:background .3s}
+.stages a:hover .t{color:var(--teal-deep)}
+.stages .node{
+  position:absolute;left:5px;top:50%;width:14px;height:14px;margin-top:-7px;border-radius:50%;
+  background:var(--paper);border:1.5px solid var(--rule-strong);display:grid;place-items:center
+}
+.stages li.done a{color:var(--ink)}
+.stages li.done .node{background:var(--teal);border-color:var(--teal)}
+.stages li.done .node::after{content:"";width:4px;height:7px;border:solid #fff;border-width:0 1.5px 1.5px 0;transform:rotate(45deg) translate(-1px,-1px)}
+.stages li.current a{color:var(--teal-deep);font-weight:600}
+.stages li.current .t{background:var(--lime);box-shadow:0 0 0 2px var(--lime)}
+.stages li.current .node{background:var(--lime);border:2px solid var(--teal-deep);width:16px;height:16px;margin-top:-8px;left:4px}
+.stages li .gate-tag{margin-left:auto;font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--teal-deep)}
+
+.chapters{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.chapters button{
+  width:100%;text-align:left;background:none;border:0;border-left:2px solid transparent;
+  padding:7px 0 7px 12px;font-family:var(--serif);font-size:18px;color:var(--ink);
+  display:flex;justify-content:space-between;align-items:baseline
+}
+.chapters button small{font-family:var(--sans);font-size:11px;color:var(--muted)}
+.chapters button:hover{color:var(--teal)}
+.chapters button[aria-selected="true"]{border-left-color:var(--teal-deep);font-weight:600;color:var(--teal-deep);background:linear-gradient(90deg,var(--sage),transparent)}
+.sandbox-line{margin-top:auto;font-size:12px;color:var(--muted);line-height:1.55;border-top:1px solid var(--rule);padding-top:var(--s3)}
+.sandbox-line b{color:var(--teal-deep);font-weight:600}
+.sandbox-line code{font-family:var(--mono);font-size:11.5px;color:var(--ink);word-break:break-all}
+
+/* ============ CENTRE ============ */
+.main{padding:0 var(--s7) var(--s8);min-width:0}
+.masthead{
+  position:relative;margin:0 calc(var(--s7)*-1);padding:var(--s7) var(--s7) var(--s6);
+  border-bottom:1px solid var(--rule);overflow:hidden;
+}
+.masthead::before{ /* stipple, sparingly */
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:
+    radial-gradient(circle at 1.5px 1.5px,rgba(53,180,140,.42) 1.1px,transparent 1.6px),
+    radial-gradient(circle at 4px 5px,rgba(53,180,140,.30) .9px,transparent 1.3px);
+  background-size:7px 7px,11px 9px;
+  -webkit-mask-image:radial-gradient(ellipse 60% 120% at 100% 0%,#000 0%,rgba(0,0,0,.35) 45%,transparent 75%);
+  mask-image:radial-gradient(ellipse 60% 120% at 100% 0%,#000 0%,rgba(0,0,0,.35) 45%,transparent 75%);
+}
+.masthead>*{position:relative}
+.masthead .eyebrow{margin:0 0 var(--s3)}
+.masthead h1{
+  font-family:var(--serif);font-weight:500;font-size:clamp(30px,3.4vw,46px);line-height:1.1;
+  letter-spacing:-.018em;color:var(--teal-deep);margin:0;max-width:19em;
+  font-variation-settings:"opsz" 72;text-wrap:balance
+}
+.masthead h1 em{font-style:italic}
+.meta{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s5);margin:var(--s5) 0 0;font-size:13px;color:var(--muted)}
+.meta div{display:flex;flex-direction:column}
+.meta dt{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:600}
+.meta dd{margin:0;font-family:var(--mono);font-size:15px;color:var(--teal-deep);font-variant-numeric:tabular-nums}
+.meta dd.plain{font-family:var(--sans);font-weight:600}
+.waiting-pill{
+  display:inline-flex;align-items:center;gap:var(--s2);margin-top:var(--s5);
+  background:var(--lime);border:1px solid var(--lime-deep);color:var(--teal-deep);
+  padding:7px 14px 7px 10px;border-radius:3px;font-weight:600;font-size:14px;text-decoration:none
+}
+.waiting-pill:hover{background:#dcf783}
+.waiting-pill .dot{width:9px;height:9px;border-radius:50%;background:var(--teal-deep);animation:pulse 2s infinite}
+.waiting-pill.idle{background:var(--sage);border-color:var(--sage-edge)}
+
+.chapter{display:none;max-width:68ch;margin:0 auto;padding-top:var(--s6)}
+.chapter.on{display:block;animation:fadein .35s ease both}
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.chapter.wide{max-width:none}
+.chapter-wrap{max-width:calc(68ch + 96px);margin:0 auto}
+
+/* stage sections */
+.stage{position:relative;padding:var(--s5) 0 var(--s5);border-bottom:1px solid var(--rule)}
+.stage:last-of-type{border-bottom:0}
+.stage .head{display:grid;grid-template-columns:auto 1fr auto;column-gap:var(--s4);align-items:baseline}
+.stage .no{
+  font-family:var(--serif);font-size:38px;line-height:1;color:var(--rule-strong);font-weight:400;
+  font-variant-numeric:lining-nums;width:1.1em;margin-left:-1.6em;margin-right:-0.5em
+}
+.stage.done .no{color:var(--teal)}
+.stage.current .no{color:var(--teal-deep)}
+.stage h2{font-family:var(--serif);font-weight:500;font-size:28px;line-height:1.15;letter-spacing:-.01em;margin:0;color:var(--teal-deep)}
+.stage.pending h2{color:var(--muted)}
+.stage .stat{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:var(--s2);white-space:nowrap}
+.stage .stat .num{font-size:12px}
+.badge{
+  display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  padding:2px 8px;border:1px solid currentColor;border-radius:2px
+}
+.badge.done{color:var(--teal)}
+.badge.wait{color:var(--teal-deep);background:var(--lime);border-color:var(--lime-deep)}
+.badge.run{color:var(--teal-deep);background:var(--lime)}
+.badge.pend{color:var(--muted);border-style:dashed}
+.oneline{font-family:var(--serif);font-size:19px;line-height:1.5;margin:var(--s3) 0 0;color:var(--ink)}
+.oneline.pend{color:var(--muted);font-size:17px}
+.toggle{
+  margin-top:var(--s3);background:none;border:0;padding:2px 0;font-size:13px;font-weight:600;color:var(--teal);
+  display:inline-flex;align-items:center;gap:6px;border-bottom:1px solid transparent
+}
+.toggle:hover{border-bottom-color:var(--teal)}
+.toggle svg{transition:transform .2s}
+.toggle[aria-expanded="true"] svg{transform:rotate(90deg)}
+.body{margin-top:var(--s4);font-family:var(--serif);font-size:18px;line-height:1.62}
+.body[hidden]{display:none}
+.body p{margin:0 0 var(--s3)}
+.body .label{display:block;margin-bottom:2px}
+.rec{font-family:var(--mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;line-height:1.7}
+.rec b{font-weight:500;color:var(--teal-deep)}
+
+/* claims and footnotes */
+.claim{
+  background:none;border:0;padding:0;font:inherit;color:inherit;text-align:left;
+  border-bottom:1.5px dotted var(--teal);cursor:pointer;
+  background-image:linear-gradient(var(--lime),var(--lime));background-size:0% 100%;background-repeat:no-repeat;
+  transition:background-size .3s ease
+}
+.claim:hover{background-size:100% 100%}
+.claim[aria-pressed="true"]{background-size:100% 100%;border-bottom-style:solid}
+.fn{
+  display:inline-block;vertical-align:super;font-family:var(--sans);font-size:11.5px;font-weight:700;line-height:1;
+  background:none;border:1px solid var(--teal);color:var(--teal);border-radius:2px;padding:1px 4px;margin:0 1px 0 2px;
+  cursor:pointer;font-variant-numeric:tabular-nums
+}
+.fn:hover,.fn[aria-pressed="true"]{background:var(--teal-deep);color:#fff;border-color:var(--teal-deep)}
+
+/* sources */
+.sources{list-style:none;margin:0 0 var(--s4);padding:0;font-family:var(--sans);font-size:14px}
+.sources li{display:grid;grid-template-columns:34px 1fr;gap:0 var(--s2);padding:var(--s2) 0;border-bottom:1px dotted var(--rule-strong)}
+.sources .ttl{font-weight:600;color:var(--teal-deep)}
+.sources .url{font-family:var(--mono);font-size:12px;color:var(--muted);word-break:break-all}
+blockquote.nano{
+  margin:0 0 var(--s3);padding:var(--s3) var(--s4);background:var(--sage);border-left:3px solid var(--teal);
+  font-style:italic;font-size:18px
+}
+.thread{list-style:none;margin:var(--s3) 0 0;padding:0 0 0 20px;position:relative;font-family:var(--sans);font-size:14px}
+.thread::before{content:"";position:absolute;left:5px;top:8px;bottom:8px;border-left:1.5px solid var(--rule-strong)}
+.thread li{position:relative;padding:4px 0 var(--s3)}
+.thread li::before{content:"";position:absolute;left:-19px;top:9px;width:10px;height:10px;border-radius:50%;background:var(--lime);border:1.5px solid var(--teal-deep)}
+.thread q{font-family:var(--serif);font-size:16px;quotes:"\201C" "\201D"}
+
+/* ============ DECISION CARD ============ */
+.decision{
+  position:relative;margin:var(--s5) 0 var(--s2);background:var(--white);
+  border-radius:6px;border-top:3px solid var(--teal-deep);border-left:6px solid var(--lime);
+  box-shadow:0 18px 50px -12px rgba(8,61,68,.22),0 2px 6px rgba(8,61,68,.06);
+  padding:var(--s5) var(--s5) var(--s5);margin-left:-12px;margin-right:-12px;
+  font-family:var(--sans)
+}
+.decision .kicker{display:flex;justify-content:space-between;align-items:center;gap:var(--s3);flex-wrap:wrap}
+.decision h3{font-family:var(--serif);font-weight:500;font-size:30px;line-height:1.12;margin:var(--s2) 0 0;color:var(--teal-deep);letter-spacing:-.012em}
+.squig{display:block;margin:2px 0 var(--s3)}
+.waitline{display:flex;align-items:center;gap:var(--s2);font-weight:700;color:var(--teal-deep);font-size:15px;margin:0 0 var(--s4)}
+.waitline i{width:9px;height:9px;border-radius:50%;background:var(--teal-deep);animation:pulse 2s infinite;flex:none}
+.propose{font-size:12.5px;color:var(--muted);margin:0 0 var(--s3);display:flex;flex-wrap:wrap;gap:2px var(--s3);align-items:center}
+.propose b{color:var(--teal-deep);font-weight:600}
+pre.code{
+  margin:0;background:var(--sage);border:1px solid var(--sage-edge);border-radius:4px;
+  padding:var(--s3) 0;overflow:auto;font-family:var(--mono);font-size:13px;line-height:1.65;color:var(--ink);
+  counter-reset:ln;tab-size:4
+}
+pre.code code{display:block;min-width:max-content}
+pre.code .l{display:block;padding:0 var(--s4) 0 0;white-space:pre}
+pre.code .l::before{counter-increment:ln;content:counter(ln);display:inline-block;width:40px;padding-right:14px;text-align:right;color:#5E7377;user-select:none}
+.k{color:var(--madder);font-weight:500}.f{color:var(--teal)}.s{color:var(--ochre)}.n{color:#2C6A3F}.c{color:#5B6F73;font-style:italic}
+.consequence{
+  margin:var(--s4) 0 var(--s4);display:grid;grid-template-columns:1.1fr 1fr;gap:var(--s4) var(--s5);
+  font-size:14px;line-height:1.5
+}
+.consequence p{margin:0}
+.consequence .big{font-family:var(--serif);font-size:19px;line-height:1.35;color:var(--ink)}
+.consequence .big b{background:linear-gradient(transparent 55%,var(--lime) 55%);font-weight:600}
+.spec{margin:0;display:grid;grid-template-columns:auto 1fr;gap:3px var(--s3);font-size:13px}
+.spec dt{color:var(--muted)}
+.spec dd{margin:0;font-family:var(--mono);font-size:12.5px;color:var(--teal-deep)}
+.lessons-applied{grid-column:1/-1;font-size:13px;color:var(--muted);border-top:1px dotted var(--rule-strong);padding-top:var(--s3)}
+.lessons-applied mark{background:var(--lime);color:var(--ink);padding:0 3px}
+.actions{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s4);border-top:1px solid var(--rule);padding-top:var(--s4)}
+.btn{
+  display:inline-flex;align-items:center;gap:var(--s2);padding:10px 16px;border-radius:4px;font-weight:600;font-size:14.5px;
+  border:1.5px solid var(--teal-deep);background:var(--white);color:var(--teal-deep);transition:background .15s,color .15s
+}
+.btn:hover{background:var(--sage)}
+.btn[aria-expanded="true"]{background:var(--lime);border-color:var(--teal-deep)}
+.btn.primary{background:var(--teal-deep);color:#fff}
+.btn.primary:hover{background:var(--teal)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn.primary{margin-right:var(--s3)}
+.reveal{margin-top:var(--s4);padding:var(--s4);background:var(--paper-2);border:1px solid var(--rule);border-radius:4px}
+.reveal[hidden]{display:none}
+.reveal label{display:block;font-weight:600;font-size:13.5px;color:var(--teal-deep);margin-bottom:6px}
+.reveal .hint{font-size:12.5px;color:var(--muted);margin:0 0 var(--s2)}
+.reveal textarea{
+  width:100%;min-height:84px;padding:10px 12px;font:inherit;font-size:14px;color:var(--ink);background:#fff;
+  border:1.5px solid var(--rule-strong);border-radius:3px;resize:vertical
+}
+.reveal textarea.codefield{font-family:var(--mono);font-size:12.5px;min-height:220px;line-height:1.6}
+.reveal .row{display:flex;gap:var(--s2);margin-top:var(--s3);align-items:center}
+.btn.sm{padding:7px 12px;font-size:13.5px}
+.btn.ghost{border-color:transparent;text-decoration:underline;text-underline-offset:3px}
+.note-rec{font-size:12.5px;color:var(--muted);margin-top:var(--s3)}
+.decided{display:none;font-family:var(--sans)}
+.decided .mark{display:flex;gap:var(--s3);align-items:flex-start;padding:var(--s3) var(--s4);background:var(--sage);border-left:3px solid var(--teal);margin:var(--s4) 0 0;font-size:14px}
+.decided .mark svg{flex:none;margin-top:2px}
+
+/* decision states */
+.stage.decided-state .decision-live{display:none}
+.stage.decided-state .decided{display:block}
+.regen .decision-live .actions,.regen .decision-live .reveal{opacity:.4;pointer-events:none}
+
+/* running log */
+.runlog{margin:var(--s3) 0 0;padding:var(--s3) var(--s4);background:var(--teal-deep);color:#D8F0EA;border-radius:4px;font-family:var(--mono);font-size:12.5px;line-height:1.75;min-height:92px}
+.runlog div{opacity:0;animation:fadein .4s forwards}
+.runlog .t{color:#9BC9C2;margin-right:10px}
+.runlog .cur::after{content:"";display:inline-block;width:7px;height:13px;background:var(--lime);margin-left:6px;vertical-align:-2px;animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* branches */
+.branches{margin:var(--s4) 0 0;padding:var(--s4);border:1px solid var(--rule);background:var(--paper-2);border-radius:4px;font-family:var(--sans)}
+.branches svg{width:100%;height:auto;display:block;overflow:visible}
+.branches figcaption{font-size:12.5px;color:var(--muted);margin-top:var(--s2);line-height:1.55}
+.branches .sc{display:block;margin-bottom:var(--s2)}
+.bnode text,.btxt{font-family:var(--mono);font-size:11px;fill:var(--ink)}
+.blabel{font-family:var(--sans);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;fill:var(--teal-deep)}
+.pendlist{list-style:none;margin:var(--s3) 0 0;padding:0;font-family:var(--sans);font-size:13.5px;color:var(--muted)}
+
+/* ============ MARGIN ============ */
+.margin{
+  position:sticky;top:0;align-self:start;height:100vh;padding:var(--s6) var(--s5) var(--s5) var(--s5);
+  border-left:1px solid var(--rule);overflow:auto;background:var(--paper)
+}
+.margin header{display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--s4)}
+.margin .close{display:none;background:none;border:1px solid var(--rule-strong);border-radius:3px;padding:2px 10px;font-size:13px;font-weight:600;color:var(--teal-deep)}
+.margin-empty{
+  position:relative;padding:var(--s5) var(--s4);border:1px dashed var(--rule-strong);border-radius:4px;color:var(--muted);font-size:13.5px;overflow:hidden
+}
+.note .quote{font-family:var(--serif);font-size:17px;line-height:1.4;color:var(--teal-deep);margin:0 0 var(--s3);padding:var(--s2) var(--s3);background:var(--lime);border-radius:2px}
+.note .sub{margin:0 0 var(--s4);font-size:12.5px;color:var(--muted)}
+.chain{list-style:none;margin:0;padding:0 0 0 22px;position:relative}
+.chain::before{content:"";position:absolute;left:6px;top:10px;bottom:14px;border-left:1.5px solid var(--teal)}
+.chain>li{position:relative;padding:0 0 var(--s4)}
+.chain>li::before{
+  content:"";position:absolute;left:-22px;top:5px;width:11px;height:11px;border-radius:50%;
+  background:var(--paper);border:2px solid var(--teal)
+}
+.chain>li.human::before{background:var(--lime);border-color:var(--teal-deep);border-radius:2px;transform:rotate(45deg)}
+.chain>li.source::before{background:var(--teal);border-radius:1px}
+.chain>li.sandbox::before{background:var(--teal-deep);border-color:var(--teal-deep)}
+.chain .kind{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);display:block}
+.chain .what{font-weight:600;color:var(--teal-deep);font-size:14px;line-height:1.35;display:block}
+.chain .m{font-family:var(--mono);font-size:11.5px;color:var(--muted);line-height:1.65;font-variant-numeric:tabular-nums;display:block;word-break:break-word}
+.chain .m b{font-weight:500;color:var(--ink)}
+.chain .quote-h{font-family:var(--serif);font-style:italic;font-size:14.5px;color:var(--ink);display:block;margin-top:2px}
+.later{margin-top:var(--s2);padding-top:var(--s3);border-top:1px dotted var(--rule-strong);font-size:12.5px;color:var(--muted)}
+
+/* ============ LEDGER / COST ============ */
+.ch-title{font-family:var(--serif);font-weight:500;font-size:clamp(28px,3vw,40px);color:var(--teal-deep);margin:0 0 var(--s2);letter-spacing:-.015em;line-height:1.1}
+.ch-lede{font-family:var(--serif);font-size:19px;line-height:1.55;color:var(--ink);margin:0 0 var(--s5)}
+.totals{display:flex;gap:var(--s7);flex-wrap:wrap;margin:var(--s5) 0;padding:var(--s4) 0;border-top:2px solid var(--teal-deep);border-bottom:1px solid var(--rule-strong)}
+.totals div{display:flex;flex-direction:column}
+.totals .v{font-family:var(--serif);font-size:44px;line-height:1;color:var(--teal-deep);font-variant-numeric:tabular-nums lining-nums;font-weight:500}
+.totals .cap{font-size:12px;color:var(--muted);margin-top:6px}
+h3.sec{font-family:var(--serif);font-weight:500;font-size:22px;color:var(--teal-deep);margin:var(--s6) 0 var(--s2)}
+table.ledger{
+  width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums lining-nums;
+  background-image:repeating-linear-gradient(transparent 0,transparent 39px,var(--rule) 39px,var(--rule) 40px);
+}
+.ledger caption{text-align:left;font-size:12.5px;color:var(--muted);padding-bottom:var(--s2)}
+.ledger th{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--muted);text-align:left;padding:0 var(--s3) var(--s2) 0;border-bottom:2px solid var(--teal-deep)}
+.ledger td{padding:0 var(--s3) 0 0;height:40px;border-bottom:1px solid var(--rule);vertical-align:middle}
+.ledger .r,.ledger th.r{text-align:right}
+.ledger td.r{font-family:var(--mono);font-size:13.5px}
+.ledger tr.pendrow td{color:var(--muted)}
+.ledger tfoot td{border-top:2px solid var(--teal-deep);border-bottom:3px double var(--teal-deep);font-weight:700;color:var(--teal-deep)}
+.ledger .why{font-family:var(--serif);font-size:15.5px;line-height:1.35;padding:var(--s2) 0;color:var(--ink);height:auto}
+.ledger td.stack{height:auto;padding:var(--s3) var(--s3) var(--s3) 0}
+.mtag{font-weight:700;color:var(--teal-deep)}
+.share{display:flex;align-items:center;gap:var(--s2);min-width:120px}
+.share i{display:block;height:6px;background:var(--teal-deep);border-radius:0}
+.share span{font-family:var(--mono);font-size:12px;min-width:38px;text-align:right}
+.chosen td{background:var(--lime)}
+.chosen td:first-child{box-shadow:inset 3px 0 0 var(--teal-deep);padding-left:var(--s2)}
+.aside{font-size:13px;color:var(--muted);margin:var(--s3) 0 0;line-height:1.55}
+.pricenote{font-size:12.5px;color:var(--muted);margin-top:var(--s5);padding-top:var(--s3);border-top:1px solid var(--rule);line-height:1.6}
+.scroll-x{overflow-x:auto}
+
+/* ============ STRATEGY ============ */
+.seg{display:inline-flex;border:1.5px solid var(--teal-deep);border-radius:4px;overflow:hidden;margin:0 0 var(--s4)}
+.seg button{background:#fff;border:0;padding:7px 14px;font-size:13.5px;font-weight:600;color:var(--teal-deep);border-right:1px solid var(--teal-deep)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--teal-deep);color:#fff}
+.sheet{
+  background:var(--white);border:1px solid var(--rule);padding:var(--s5) var(--s5) var(--s4);position:relative;
+  background-image:repeating-linear-gradient(transparent 0,transparent 35px,#E9EDDC 35px,#E9EDDC 36px);background-position:0 var(--s5);
+  box-shadow:none
+}
+.sheet ol{list-style:none;margin:0;padding:0;counter-reset:ls}
+.lesson{
+  font-family:var(--serif);font-size:19px;line-height:36px;padding:0 0 0 54px;position:relative;
+}
+.lesson .mk{
+  position:absolute;left:0;top:0;width:44px;font-family:var(--sans);font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;line-height:36px;color:var(--muted)
+}
+.lesson.add .mk{color:var(--teal-deep)}
+.lesson.add .tx{background:var(--lime);padding:2px 4px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.lesson.rem .tx{text-decoration:line-through;text-decoration-thickness:1.5px;text-decoration-color:var(--madder);color:#5B4A4D}
+.lesson.rem .mk{color:var(--madder)}
+.lesson .why{display:block;font-family:var(--sans);font-size:13px;line-height:1.45;color:var(--muted);padding:0 0 var(--s3);text-decoration:none}
+.lesson .why b{color:var(--madder);font-weight:700}
+.sheet[data-mode="before"] .lesson.add{display:none}
+.sheet[data-mode="after"] .lesson.rem{display:none}
+.sheet[data-mode="after"] .mk,.sheet[data-mode="before"] .mk{visibility:hidden}
+.sheet[data-mode="after"] .lesson.add .tx{background:none;padding:0}
+.legend{display:flex;gap:var(--s5);flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:var(--s3) 0 0}
+.legend span b{font-weight:400}
+.legend .a{background:var(--lime);padding:0 4px;color:var(--ink)}
+.legend .r{text-decoration:line-through;text-decoration-color:var(--madder);color:var(--ink)}
+.fedforward{display:grid;grid-template-columns:auto 1fr;gap:var(--s4);margin-top:var(--s5);padding:var(--s4);background:var(--sage);border-left:3px solid var(--teal-deep);font-size:14.5px}
+.fedforward svg{margin-top:3px}
+.fedforward p{margin:0}
+.failstory{font-family:var(--serif);font-size:18px;line-height:1.6}
+.failstory code{font-family:var(--mono);font-size:13px;background:var(--sage);padding:1px 5px}
+.verdict{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-family:var(--sans);font-size:12px;letter-spacing:.1em;text-transform:uppercase;padding:2px 9px 2px 7px;border:1.5px solid currentColor;border-radius:2px}
+.verdict.failed{color:var(--madder)}
+.verdict.inconclusive{color:#6A5200}
+.verdict.supports{color:var(--teal)}
+
+/* ============ NOTEBOOK ============ */
+.docbar{display:flex;gap:var(--s2);flex-wrap:wrap;margin-bottom:var(--s4)}
+.doctab{
+  background:none;border:1px solid var(--rule-strong);border-radius:3px;padding:7px 12px;font-size:13.5px;text-align:left;color:var(--ink);line-height:1.35
+}
+.doctab b{display:block;font-family:var(--mono);font-weight:500;font-size:12.5px;color:var(--teal-deep)}
+.doctab[aria-selected="true"]{background:var(--sage);border-color:var(--teal-deep);box-shadow:inset 0 -3px 0 var(--lime)}
+.willbe{
+  padding:var(--s4);border:1px dashed var(--rule-strong);font-size:14px;color:var(--muted);margin-bottom:var(--s4);position:relative;overflow:hidden
+}
+.willbe::before{content:"";position:absolute;inset:0;background-image:radial-gradient(circle at 1.5px 1.5px,rgba(53,180,140,.35) 1.1px,transparent 1.6px);background-size:7px 7px;-webkit-mask-image:linear-gradient(90deg,transparent 35%,#000);mask-image:linear-gradient(90deg,transparent 35%,#000)}
+.willbe>*{position:relative}
+.nbdoc{display:none;background:#fff;border:1px solid var(--rule);padding:var(--s6) var(--s6) var(--s5);box-shadow:none}
+.nbdoc.on{display:block}
+.nbdoc h3.nbt{font-family:var(--serif);font-weight:500;font-size:28px;line-height:1.15;margin:var(--s2) 0 var(--s3);color:var(--teal-deep);letter-spacing:-.01em}
+.simlabel{
+  display:flex;gap:var(--s3);align-items:flex-start;margin:var(--s4) 0;padding:var(--s3) var(--s4);
+  background:var(--lime);border:1px solid var(--lime-deep);color:var(--teal-deep);font-weight:700;font-size:14.5px;line-height:1.35
+}
+.simlabel svg{flex:none;margin-top:1px}
+.simlabel small{display:block;font-weight:500;font-size:12.5px;color:var(--ink);margin-top:2px}
+.cell{display:grid;grid-template-columns:54px 1fr;gap:0 var(--s2);margin:var(--s4) 0}
+.cell .io{font-family:var(--mono);font-size:12px;color:var(--teal);padding-top:12px;text-align:right}
+.cell pre.code{background:var(--sage)}
+.cell pre.out{margin:0;padding:var(--s3) var(--s4);background:var(--paper);border:1px solid var(--rule);border-left:3px solid var(--teal);font-family:var(--mono);font-size:13px;line-height:1.7;overflow:auto;color:var(--ink)}
+.verdictrow{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;font-family:var(--serif);font-size:19px;margin:var(--s5) 0 var(--s3)}
+.caveats{margin:0;padding:var(--s3) var(--s4);border-top:1px solid var(--rule-strong);font-size:14.5px;color:var(--ink)}
+.caveats h4{margin:0 0 4px}
+.nbfoot{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:center;margin-top:var(--s5);padding-top:var(--s3);border-top:1px solid var(--rule);font-size:12.5px;color:var(--muted)}
+.nbfoot .btn{font-size:13px;padding:6px 12px}
+
+/* ============ RESPONSIVE ============ */
+@media (max-width:1240px){
+  .shell{grid-template-columns:208px minmax(0,1fr)}
+  .main{padding:0 var(--s5) var(--s8)}
+  .masthead{margin:0 calc(var(--s5)*-1);padding:var(--s6) var(--s5) var(--s5)}
+  .margin{
+    position:fixed;left:208px;right:0;bottom:0;top:auto;height:auto;max-height:58vh;z-index:20;
+    border:0;border-top:3px solid var(--teal-deep);box-shadow:0 -14px 40px -10px rgba(8,61,68,.25);
+    transform:translateY(105%);transition:transform .3s ease;padding:var(--s4) var(--s5) var(--s5)
+  }
+  .margin.open{transform:none}
+  .margin .close{display:inline-block}
+  .stage .no{margin-left:0;margin-right:0;display:none}
+  .stage .head{grid-template-columns:1fr auto}
+  .index{padding:var(--s5) var(--s4) var(--s4) var(--s5)}
+}
+@media (max-width:860px){
+  .shell{display:block}
+  .index{
+    position:sticky;top:0;z-index:15;height:auto;background:var(--paper);border-right:0;border-bottom:1px solid var(--rule);
+    padding:var(--s3) var(--s4);gap:var(--s2);overflow:visible
+  }
+  .index .stages-wrap,.index .sandbox-line{display:none}
+  .brand{font-size:20px}
+  .index .idxtop{display:flex;justify-content:space-between;align-items:center;gap:var(--s3)}
+  .projcard{display:none}
+  .chapters{flex-direction:row;overflow-x:auto;gap:var(--s3)}
+  .chapters button{border-left:0;border-bottom:2px solid transparent;padding:4px 2px;font-size:16px;white-space:nowrap;width:auto}
+  .chapters button small{display:none}
+  .chapters button[aria-selected="true"]{border-bottom-color:var(--teal-deep);background:none}
+  .main{padding:0 var(--s4) var(--s8)}
+  .masthead{margin:0 calc(var(--s4)*-1);padding:var(--s5) var(--s4)}
+  .meta{gap:var(--s3) var(--s5)}
+  .margin{left:0}
+  .stage h2{font-size:24px}
+  .decision{margin-left:-8px;margin-right:-8px;padding:var(--s4)}
+  .decision h3{font-size:25px}
+  .consequence{grid-template-columns:1fr}
+  .btn.primary{margin-right:0;width:100%;justify-content:center}
+  .actions .btn{flex:1 1 auto;justify-content:center}
+  .nbdoc{padding:var(--s4)}
+  .cell{grid-template-columns:1fr}
+  .cell .io{text-align:left;padding:var(--s2) 0 2px}
+  .sheet{padding:var(--s4) var(--s3)}
+  .lesson{padding-left:46px;font-size:17px;line-height:30px}
+  .lesson .mk{line-height:30px;width:38px}
+  .totals{gap:var(--s5)}
+  .totals .v{font-size:34px}
+  .stage .stat{display:none}
+  .mob-stage{display:flex !important}
+}
+.mob-stage{display:none;align-items:center;gap:var(--s2);font-size:12.5px;color:var(--muted);margin-top:var(--s2)}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none !important;transition:none !important;scroll-behavior:auto !important}
+  .runlog div{opacity:1}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-check" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 10.4l2.8 2.8L14.2 7.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-half" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10 1.5a8.5 8.5 0 0 0 0 17z" fill="currentColor"/></symbol>
+    <symbol id="i-cross" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6.8 6.8l6.4 6.4M13.2 6.8l-6.4 6.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-flask" viewBox="0 0 22 22"><path d="M8 2.5h6M9 2.5v6.2L3.8 17.2a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L13 8.7V2.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/><path d="M6.4 14h9.2" stroke="currentColor" stroke-width="1.7"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 12 12"><path d="M4 2l4.5 4L4 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 20 20"><path d="M3 10h13M11 4.5L16.5 10 11 15.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<div class="shell">
+
+<!-- ================= LEFT: INDEX ================= -->
+<nav class="index" aria-label="Project index">
+  <div class="idxtop">
+    <a class="brand" href="#top" aria-label="Palissy">
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M4 21C4 11 10 5 22 4c-1 11-7 17-18 17z" fill="#083D44"/><path d="M4 21C9 15 13 11 18 8" stroke="#E5FF97" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg>
+      Palissy
+    </a>
+  </div>
+
+  <div class="projcard">
+    <span class="status"><i></i><span id="statusText">running</span></span> · opened by the researcher
+    <dl>
+      <dt>Project</dt><dd class="pid">603c3237</dd>
+      <dt>Elapsed</dt><dd id="elapsed">05:12</dd>
+      <dt>This project</dt><dd>$0.0063</dd>
+      <dt>All projects</dt><dd>$0.0443</dd>
+    </dl>
+  </div>
+
+  <div class="stages-wrap">
+    <p class="sc idx-label">The seven stages</p>
+    <ol class="stages" id="stages">
+      <svg class="spine" id="thread" aria-hidden="true"></svg>
+      <li class="done" data-n="1"><a href="#st1"><span class="node"></span><span class="t">Literature</span></a></li>
+      <li class="done" data-n="2"><a href="#st2"><span class="node"></span><span class="t">Hypothesis</span></a></li>
+      <li class="current" data-n="3"><a href="#st3"><span class="node"></span><span class="t">Experiment design</span></a></li>
+      <li data-n="4"><a href="#st4"><span class="node"></span><span class="t">Execution</span></a></li>
+      <li data-n="5"><a href="#st5"><span class="node"></span><span class="t">Analysis</span></a></li>
+      <li data-n="6"><a href="#st6"><span class="node"></span><span class="t">Reflection</span></a></li>
+      <li data-n="7"><a href="#st7"><span class="node"></span><span class="t">Notebook</span></a></li>
+    </ol>
+  </div>
+
+  <div role="tablist" aria-label="Chapters" style="display:contents">
+    <div>
+      <p class="sc idx-label">Chapters</p>
+      <ul class="chapters">
+        <li><button role="tab" id="tab-research" aria-selected="true" aria-controls="ch-research" data-chapter="research">Research <small>live</small></button></li>
+        <li><button role="tab" id="tab-cost" aria-selected="false" aria-controls="ch-cost" data-chapter="cost">Cost ledger <small>$0.0063</small></button></li>
+        <li><button role="tab" id="tab-strategy" aria-selected="false" aria-controls="ch-strategy" data-chapter="strategy">Strategy <small>4 edits</small></button></li>
+        <li><button role="tab" id="tab-notebook" aria-selected="false" aria-controls="ch-notebook" data-chapter="notebook">Notebook <small>2 open</small></button></li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="sandbox-line">
+    Sandbox backend <b>contree</b><br>
+    image <code>palissy/base/python:3.12-numpy</code>
+  </p>
+</nav>
+
+<!-- ================= CENTRE ================= -->
+<main class="main" id="top">
+
+  <header class="masthead">
+    <p class="sc eyebrow">Open research notebook &middot; Project <span class="mono" style="letter-spacing:0;text-transform:none">603c3237</span></p>
+    <h1>Does codon usage bias correlate with gene expression level in <em>E.&nbsp;coli</em>?</h1>
+    <dl class="meta">
+      <div><dt>Status</dt><dd class="plain" id="metaStatus">Running</dd></div>
+      <div><dt>Elapsed</dt><dd id="elapsed2">05:12</dd></div>
+      <div><dt>This project</dt><dd>$0.0063</dd></div>
+      <div><dt>All projects</dt><dd>$0.0443</dd></div>
+    </dl>
+    <a class="waiting-pill" id="waitPill" href="#gate"><span class="dot"></span><span id="waitText">1 decision waiting: Experiment design</span></a>
+    <div class="mob-stage" aria-hidden="true"><span class="badge wait" id="mobBadge">Stage 3 of 7</span> <span id="mobStage">Experiment design</span></div>
+  </header>
+
+  <!-- ===== CHAPTER: RESEARCH ===== -->
+  <div class="chapter-wrap">
+  <section class="chapter on" id="ch-research" role="tabpanel" aria-labelledby="tab-research">
+
+    <!-- 1 -->
+    <article class="stage done" id="st1">
+      <div class="head">
+        <span class="no" aria-hidden="true">1</span>
+        <h2>Literature</h2>
+        <span class="stat"><span class="badge done">Done</span><span class="num">5.4 s</span></span>
+      </div>
+      <p class="oneline">Five sources found and read by Nano
+        <button class="fn" data-prov="cite1" aria-pressed="false" aria-label="Derivation of source 1">1</button><button class="fn" data-prov="cite2" aria-pressed="false" aria-label="Derivation of source 2">2</button><button class="fn" data-prov="cite3" aria-pressed="false" aria-label="Derivation of source 3">3</button><button class="fn" data-prov="cite4" aria-pressed="false" aria-label="Derivation of source 4">4</button><button class="fn" data-prov="cite5" aria-pressed="false" aria-label="Derivation of source 5">5</button>;
+        <button class="claim" data-prov="summary" aria-pressed="false">codon bias is pervasive in <em>E.&nbsp;coli</em> and tightly linked to expression</button>.</p>
+      <button class="toggle" aria-expanded="false" aria-controls="b1"><svg width="11" height="11"><use href="#i-chev"/></svg><span>Open the sources and summary</span></button>
+      <div class="body" id="b1" hidden>
+        <ol class="sources" style="padding:0">
+          <li><button class="fn" data-prov="cite1" aria-pressed="false" style="height:fit-content">1</button><div><span class="ttl">ScienceDirect Topics &mdash; Codon usage bias</span><br><span class="url">sciencedirect.com/topics/biochemistry-genetics-and-molecular-biology/codon-usage-bias</span></div></li>
+          <li><button class="fn" data-prov="cite2" aria-pressed="false" style="height:fit-content">2</button><div><span class="ttl">PMC2646356</span><br><span class="url">pmc.ncbi.nlm.nih.gov/articles/PMC2646356</span></div></li>
+          <li><button class="fn" data-prov="cite3" aria-pressed="false" style="height:fit-content">3</button><div><span class="ttl">GenScript &mdash; <em>E. coli</em> codon usage</span><br><span class="url">genscript.com/biology-glossary/17502/e-coli-codon-usage</span></div></li>
+          <li><button class="fn" data-prov="cite4" aria-pressed="false" style="height:fit-content">4</button><div><span class="ttl">bioRxiv 2023.08.31.555696</span><br><span class="url">biorxiv.org/content/10.1101/2023.08.31.555696v1.full-text</span></div></li>
+          <li><button class="fn" data-prov="cite5" aria-pressed="false" style="height:fit-content">5</button><div><span class="ttl">Frontiers in Microbiology 2024.1414422</span><br><span class="url">frontiersin.org/journals/microbiology/articles/10.3389/fmicb.2024.1414422/full</span></div></li>
+        </ol>
+        <span class="sc label">Nano summary</span>
+        <blockquote class="nano">&ldquo;Codon usage bias (CUB) is pervasive in <em>Escherichia coli</em> and is tightly linked to how heavily a gene is expressed. Highly expressed genes favour a small set of optimal codons matched to abundant tRNAs&hellip;&rdquo;</blockquote>
+        <p class="rec">Tavily search + <b>Nemotron-3 Nano 30B-A3B</b> &middot; record <b>b5ad5a228dae</b><br>934 in / 289 out &middot; $0.00010 &middot; 3.79 s</p>
+      </div>
+    </article>
+
+    <!-- 2 -->
+    <article class="stage done" id="st2">
+      <div class="head">
+        <span class="no" aria-hidden="true">2</span>
+        <h2>Hypothesis</h2>
+        <span class="stat"><span class="badge done">Approved</span><span class="num">7.1 s</span></span>
+      </div>
+      <p class="oneline"><button class="claim" data-prov="hyp" aria-pressed="false">In <em>E.&nbsp;coli</em>, genes with higher Relative Codon Bias Strength (RCBS) exhibit higher expression levels.</button><button class="fn" data-prov="cite1" aria-pressed="false" aria-label="Derivation of source 1">1</button><button class="fn" data-prov="cite2" aria-pressed="false" aria-label="Derivation of source 2">2</button><button class="fn" data-prov="cite5" aria-pressed="false" aria-label="Derivation of source 5">5</button></p>
+      <button class="toggle" aria-expanded="false" aria-controls="b2"><svg width="11" height="11"><use href="#i-chev"/></svg><span>Open prediction, rationale and your decision</span></button>
+      <div class="body" id="b2" hidden>
+        <p><span class="sc label">Prediction</span>Spearman correlation between RCBS and expression is positive and &gt;&nbsp;0.5 (p&nbsp;&lt;&nbsp;0.01) in a simulated gene set with matched tRNA supply.</p>
+        <p><span class="sc label">Rationale</span>Codon optimality speeds and stabilises translation, so selection on highly expressed genes should sharpen codon bias [1][2][5].</p>
+        <p class="rec">Generated by <b>Nemotron-3 Ultra 550B-A55B</b> &middot; record <b>728224211939</b><br>1565 in / 2160 out &middot; $0.00553 &middot; 7.12 s</p>
+        <span class="sc label" style="margin-top:12px">Your decision at gate 1 of 3</span>
+        <ul class="thread">
+          <li><b>Inject knowledge.</b> <q>State the model&rsquo;s assumptions explicitly.</q> The step regenerated with your fact.</li>
+          <li><b>Approve.</b> Hypothesis accepted as written. <span class="mono" style="font-size:12px;color:var(--muted)">record 3e965191dae1</span></li>
+        </ul>
+      </div>
+    </article>
+
+    <!-- 3 -->
+    <article class="stage current" id="st3">
+      <div class="head">
+        <span class="no" aria-hidden="true">3</span>
+        <h2>Experiment design</h2>
+        <span class="stat"><span class="badge wait" id="st3badge">Awaiting you</span><span class="num">10.4 s</span></span>
+      </div>
+      <p class="oneline" id="st3line">Nemotron-3 Super wrote a 22-line simulation that tests the prediction with a permutation test. It has not run, and it will not until you approve it.</p>
+
+      <section class="decision" id="gate" aria-labelledby="gate-title" tabindex="-1">
+        <div class="decision-live">
+          <div class="kicker">
+            <span class="sc" style="color:var(--teal-deep)">Your decision &middot; gate 2 of 3 &middot; Experiment</span>
+            <span class="badge wait" id="revBadge" hidden>Revision 2</span>
+          </div>
+          <h3 id="gate-title">Read this code, then decide whether it may run.</h3>
+          <svg class="squig" width="180" height="9" viewBox="0 0 180 9" aria-hidden="true"><path d="M2 5C12 1 18 8 30 4s20 4 32 0 22 4 34 0 22 4 34 0 22 3 34 0 10 2 12 1" fill="none" stroke="#083D44" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <p class="waitline"><i></i><span id="waitline">Waiting for you. Nothing runs until you decide.</span></p>
+
+          <p class="propose">
+            <span>Proposed by <b>Nemotron-3 Super 120B-A12B</b></span>
+            <span class="mono">258 in / 1714 out &middot; $0.00071 &middot; 10.43 s</span>
+            <button class="fn" data-prov="exp" aria-pressed="false" aria-label="Derivation of this code" style="vertical-align:baseline">record 9f5508fbc53d</button>
+          </p>
+
+<pre class="code" id="code-exp" tabindex="0" aria-label="Proposed Python code"><code><span class="l"><span class="k">import</span> numpy <span class="k">as</span> np, math</span><span class="l">np.random.seed(<span class="n">42</span>)                      <span class="c"># deterministic</span></span><span class="l"></span><span class="l">N_GENES = <span class="n">200</span></span><span class="l">rcbs = np.random.beta(<span class="n">2</span>, <span class="n">5</span>, N_GENES)    <span class="c"># codon bias strength per gene</span></span><span class="l">trna = np.random.normal(<span class="n">0</span>, <span class="n">0.15</span>, N_GENES)</span><span class="l">expr = <span class="n">0.8</span> * rcbs + trna                <span class="c"># expression = bias + tRNA supply noise</span></span><span class="l"></span><span class="l"><span class="k">def</span> <span class="f">ranks</span>(a):</span><span class="l">    <span class="k">return</span> np.argsort(np.argsort(a)).astype(float)</span><span class="l"></span><span class="l"><span class="k">def</span> <span class="f">spearman</span>(x, y):</span><span class="l">    rx, ry = ranks(x), ranks(y)</span><span class="l">    <span class="k">return</span> np.corrcoef(rx, ry)[<span class="n">0</span>, <span class="n">1</span>]</span><span class="l"></span><span class="l">rho = spearman(rcbs, expr)</span><span class="l">perm = [abs(spearman(rcbs, np.random.permutation(expr))) <span class="k">for</span> _ <span class="k">in</span> range(<span class="n">999</span>)]</span><span class="l">p = (sum(v &gt;= abs(rho) <span class="k">for</span> v <span class="k">in</span> perm) + <span class="n">1</span>) / <span class="n">1000</span></span><span class="l"></span><span class="l"><span class="f">print</span>(<span class="s">f"Observed Spearman rho: {rho:.4f}"</span>)</span><span class="l"><span class="f">print</span>(<span class="s">f"Empirical p-value (two-sided): {p:.4f}"</span>)</span><span class="l"><span class="f">print</span>(<span class="s">"RESULT: supports"</span> <span class="k">if</span> rho &gt; <span class="n">0.5</span> <span class="k">and</span> p &lt; <span class="n">0.01</span> <span class="k">else</span> <span class="s">"RESULT: inconclusive"</span>)</span></code></pre>
+
+          <div class="consequence">
+            <p class="big">If you approve, <b>this code will run in an isolated ConTree sandbox</b>. It cannot reach the network or your files.</p>
+            <dl class="spec">
+              <dt>Backend</dt><dd>contree</dd>
+              <dt>Image</dt><dd>palissy/base/python:3.12-numpy</dd>
+              <dt>Timeout</dt><dd>20 s</dd>
+              <dt>Network</dt><dd>none</dd>
+              <dt>File I/O</dt><dd>none</dd>
+            </dl>
+            <p class="lessons-applied">Shaped by two standing lessons from earlier reflections: <mark>numpy only</mark> and <mark>keep experiments under 20 seconds</mark>. See the Strategy chapter.</p>
+          </div>
+
+          <div class="actions" role="group" aria-label="Decide on this experiment">
+            <button class="btn primary" id="btnApprove"><svg width="18" height="18"><use href="#i-check"/></svg>Approve and run in sandbox</button>
+            <button class="btn" data-reveal="modify" aria-expanded="false" aria-controls="r-modify">Modify</button>
+            <button class="btn" data-reveal="inject" aria-expanded="false" aria-controls="r-inject">Inject knowledge</button>
+            <button class="btn" data-reveal="reject" aria-expanded="false" aria-controls="r-reject">Reject</button>
+          </div>
+
+          <div class="reveal" id="r-reject" hidden>
+            <label for="f-reject">Why are you rejecting this design?</label>
+            <p class="hint">A reason is required. It is stored with the decision and given to Super when it redesigns the experiment.</p>
+            <textarea id="f-reject" placeholder="e.g. A Gaussian noise term for tRNA supply is not justified by the sources."></textarea>
+            <div class="row"><button class="btn primary sm" data-confirm="reject" style="margin:0">Reject and redesign</button><button class="btn ghost sm" data-cancel>Cancel</button></div>
+          </div>
+          <div class="reveal" id="r-modify" hidden>
+            <label for="f-modify">Replace the code with your own</label>
+            <p class="hint">Your text replaces Super&rsquo;s proposal. It is shown to you again only if you ask; approving here sends exactly what you wrote to the sandbox.</p>
+            <textarea id="f-modify" class="codefield" spellcheck="false">import numpy as np, math
+np.random.seed(42)
+
+N_GENES = 200
+rcbs = np.random.beta(2, 5, N_GENES)
+trna = np.random.normal(0, 0.15, N_GENES)
+expr = 0.8 * rcbs + trna
+# ... edit me</textarea>
+            <div class="row"><button class="btn primary sm" data-confirm="modify" style="margin:0">Use my code and run it</button><button class="btn ghost sm" data-cancel>Cancel</button></div>
+          </div>
+          <div class="reveal" id="r-inject" hidden>
+            <label for="f-inject">What should the model know?</label>
+            <p class="hint">Add a fact or constraint. Super regenerates the design with it, at a cost of about $0.00071 per regeneration.</p>
+            <textarea id="f-inject" placeholder="e.g. Real E. coli expression spans about four orders of magnitude; use a log-normal noise term."></textarea>
+            <div class="row"><button class="btn primary sm" data-confirm="inject" style="margin:0">Inject and regenerate</button><button class="btn ghost sm" data-cancel>Cancel</button></div>
+          </div>
+          <p class="note-rec">Every decision is written to the notebook with your name and the model record it applies to.</p>
+        </div>
+
+        <div class="decided" role="status" aria-live="polite" id="decidedBox">
+          <span class="sc" style="color:var(--teal-deep)">Decision recorded &middot; gate 2 of 3</span>
+          <div class="mark"><svg width="20" height="20" style="color:var(--teal)"><use href="#i-check"/></svg><div id="decidedText"><b>Approved by you.</b> The code above has been sent to the ConTree sandbox.</div></div>
+          <button class="toggle" id="undoBtn" type="button">Reset this demo</button>
+        </div>
+      </section>
+
+      <button class="toggle" aria-expanded="false" aria-controls="b3" style="margin-top:var(--s4)"><svg width="11" height="11"><use href="#i-chev"/></svg><span>Open how this design was made</span></button>
+      <div class="body" id="b3" hidden>
+        <p class="rec">Generated by <b>Nemotron-3 Super 120B-A12B</b> &middot; record <b>9f5508fbc53d</b><br>258 in / 1714 out &middot; $0.00071 &middot; 10.43 s<br>Routed to Super because the policy sends code generation to Super. Ultra would have cost about $0.0039 for the same tokens.</p>
+      </div>
+    </article>
+
+    <!-- 4 -->
+    <article class="stage pending" id="st4">
+      <div class="head">
+        <span class="no" aria-hidden="true">4</span>
+        <h2>Execution</h2>
+        <span class="stat"><span class="badge pend" id="st4badge">Upcoming</span></span>
+      </div>
+      <p class="oneline pend" id="st4line">Runs the approved code inside a ConTree sandbox and records exit code, output and wall time.</p>
+      <div class="runlog" id="runlog" hidden aria-live="polite"></div>
+      <figure class="branches" aria-label="ConTree branch history">
+        <span class="sc">Sandbox branches &middot; fork and rollback</span>
+        <svg viewBox="0 0 620 170" role="img" aria-label="Branch diagram: main goes base image, pip install numpy, experiment run. A variant branch forks at pip install numpy, writes a file, and is rolled back.">
+          <!-- main lane -->
+          <text class="blabel" x="0" y="44">main</text>
+          <path d="M70 40 H560" stroke="#083D44" stroke-width="2" fill="none"/>
+          <g class="bnode">
+            <circle cx="110" cy="40" r="7" fill="#083D44"/>
+            <circle cx="290" cy="40" r="7" fill="#083D44"/>
+            <circle cx="500" cy="40" r="7" fill="#FCFCF8" stroke="#083D44" stroke-width="2" stroke-dasharray="3 2" id="runNode"/>
+            <text x="110" y="20" text-anchor="middle">base image</text>
+            <text x="290" y="20" text-anchor="middle">pip install numpy</text>
+            <text x="500" y="20" text-anchor="middle">experiment run</text>
+            <text x="500" y="66" text-anchor="middle" style="fill:#4B666C" id="runNote">next, after your approval</text>
+          </g>
+          <!-- variant lane -->
+          <text class="blabel" x="0" y="130">variant</text>
+          <path d="M290 40 C 290 75, 300 120, 345 120 H 420" stroke="#026370" stroke-width="2" fill="none"/>
+          <g class="bnode">
+            <circle cx="345" cy="120" r="6" fill="#026370"/>
+            <text x="345" y="146" text-anchor="middle">wrote a file</text>
+            <text x="250" y="86" text-anchor="end" style="fill:#4B666C">forked here</text>
+          </g>
+          <!-- rollback -->
+          <path d="M420 120 C 470 120, 470 120, 470 120" stroke="#026370" stroke-width="2" fill="none"/>
+          <g transform="translate(428 120)">
+            <circle r="9" fill="#FCFCF8" stroke="#8A2F3C" stroke-width="2"/>
+            <path d="M-3.5 -3.5l7 7M3.5 -3.5l-7 7" stroke="#8A2F3C" stroke-width="2" stroke-linecap="round"/>
+          </g>
+          <path d="M440 113 C 480 90, 380 80, 298 48" stroke="#8A2F3C" stroke-width="1.6" fill="none" stroke-dasharray="4 3"/>
+          <path d="M298 48 l9 1 m-9 -1 l3 9" stroke="#8A2F3C" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+          <text class="btxt" x="456" y="124" style="fill:#8A2F3C">rolled back</text>
+          <text class="btxt" x="456" y="146" style="fill:#4B666C">file absent on main</text>
+        </svg>
+        <figcaption>Recorded in an earlier isolation check. The <span class="mono">variant</span> branch was forked at the numpy-install checkpoint, wrote a file, and was discarded. The file never appeared on <span class="mono">main</span>. Branching is how Palissy tries a rival hypothesis without touching a run that worked.</figcaption>
+      </figure>
+    </article>
+
+    <!-- 5,6,7 -->
+    <article class="stage pending" id="st5">
+      <div class="head"><span class="no" aria-hidden="true">5</span><h2>Analysis</h2><span class="stat"><span class="badge pend">Upcoming</span></span></div>
+      <p class="oneline pend">Super reads the recorded output and states a verdict: supports, inconclusive or failed, with caveats.</p>
+    </article>
+    <article class="stage pending" id="st6">
+      <div class="head"><span class="no" aria-hidden="true">6</span><h2>Reflection</h2><span class="stat"><span class="badge pend">Upcoming</span></span></div>
+      <p class="oneline pend">Ultra marks up the standing lessons. You approve the edits at gate 3 of 3 before they reach the next run.</p>
+    </article>
+    <article class="stage pending" id="st7">
+      <div class="head"><span class="no" aria-hidden="true">7</span><h2>Notebook</h2><span class="stat"><span class="badge pend">Upcoming</span></span></div>
+      <p class="oneline pend">Assembles code, output, verdict, caveats and the full provenance into a reproducible notebook. <button class="toggle" data-goto-chapter="notebook" style="margin:0;font-family:var(--sans);font-size:14px">See a finished one</button></p>
+    </article>
+  </section>
+
+  <!-- ===== CHAPTER: COST ===== -->
+  <section class="chapter wide" id="ch-cost" role="tabpanel" aria-labelledby="tab-cost" hidden>
+    <p class="sc">Chapter &middot; Cost ledger</p>
+    <h2 class="ch-title">What this question has cost, and why each model was used</h2>
+    <p class="ch-lede">Every model call is entered here when it happens. Routing is a policy, not a mood: the expensive model is kept for the two steps that need deep reasoning.</p>
+
+    <div class="totals">
+      <div><span class="v">$0.0063</span><span class="cap">this project &middot; 603c3237</span></div>
+      <div><span class="v">$0.0443</span><span class="cap">all projects</span></div>
+    </div>
+
+    <div class="scroll-x">
+    <table class="ledger">
+      <caption>Ledger &middot; by stage, this project</caption>
+      <thead><tr><th>Stage</th><th>Model</th><th class="r">Tokens in / out</th><th class="r">Latency</th><th class="r">USD</th></tr></thead>
+      <tbody>
+        <tr><td>1 &nbsp;Literature summary</td><td class="mtag">Nano</td><td class="r">934 / 289</td><td class="r">3.79 s</td><td class="r">0.00010</td></tr>
+        <tr><td>2 &nbsp;Hypothesis</td><td class="mtag">Ultra</td><td class="r">1565 / 2160</td><td class="r">7.12 s</td><td class="r">0.00553</td></tr>
+        <tr><td>3 &nbsp;Experiment design</td><td class="mtag">Super</td><td class="r">258 / 1714</td><td class="r">10.43 s</td><td class="r">0.00071</td></tr>
+        <tr class="pendrow"><td>4 &nbsp;Execution</td><td>sandbox</td><td class="r">&mdash;</td><td class="r">&mdash;</td><td class="r">pending</td></tr>
+        <tr class="pendrow"><td>5 &nbsp;Analysis</td><td>Super</td><td class="r">&mdash;</td><td class="r">&mdash;</td><td class="r">pending</td></tr>
+        <tr class="pendrow"><td>6 &nbsp;Reflection</td><td>Ultra</td><td class="r">&mdash;</td><td class="r">&mdash;</td><td class="r">pending</td></tr>
+      </tbody>
+      <tfoot><tr><td colspan="4">Spent so far (rounds to $0.0063)</td><td class="r">0.00634</td></tr></tfoot>
+    </table>
+    </div>
+
+    <h3 class="sec">By model, across all projects</h3>
+    <div class="scroll-x">
+    <table class="ledger">
+      <caption>Ledger &middot; by model &middot; with the reason each was routed where it was</caption>
+      <thead><tr><th>Model</th><th class="r">Calls</th><th class="r">USD</th><th>Share of spend</th><th>Why it is used here</th></tr></thead>
+      <tbody>
+        <tr><td class="stack"><span class="mtag">Nemotron-3 Ultra</span><br><span class="mono" style="font-size:11.5px;color:var(--muted)">550B-A55B</span></td><td class="r">8</td><td class="r">0.03853</td><td><div class="share"><i style="width:87px"></i><span>87%</span></div></td><td class="why stack">Deep reasoning. Hypothesis generation and reflection, where a weak answer would mislead every later stage.</td></tr>
+        <tr><td class="stack"><span class="mtag">Nemotron-3 Super</span><br><span class="mono" style="font-size:11.5px;color:var(--muted)">120B-A12B</span></td><td class="r">8</td><td class="r">0.00537</td><td><div class="share"><i style="width:12px"></i><span>12%</span></div></td><td class="why stack">Code generation and analysis: experiment design, code repair, reading the recorded output.</td></tr>
+        <tr><td class="stack"><span class="mtag">Nemotron-3 Nano</span><br><span class="mono" style="font-size:11.5px;color:var(--muted)">30B-A3B</span></td><td class="r">4</td><td class="r">0.00043</td><td><div class="share"><i style="width:1px"></i><span>1%</span></div></td><td class="why stack">Summarising literature. Cheap, fast, and easy for you to check against the five sources.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="aside">Ultra made 8 of 20 calls (40%) and accounts for about 87% of spend. That is the intended trade: two kinds of step get the large model, every other step does not.</p>
+
+    <h3 class="sec">The price of this gate&rsquo;s alternatives</h3>
+    <div class="scroll-x">
+    <table class="ledger">
+      <caption>The same 258 in / 1714 out tokens as the experiment design, priced by model</caption>
+      <thead><tr><th>If this step had used</th><th class="r">USD</th><th>Relative to Super</th></tr></thead>
+      <tbody>
+        <tr><td>Nano</td><td class="r">0.00036</td><td class="mono" style="font-size:13px">0.5&times; &middot; cheaper, but weaker at code</td></tr>
+        <tr class="chosen"><td><b>Super &middot; chosen by policy</b></td><td class="r">0.00071</td><td class="mono" style="font-size:13px">1&times;</td></tr>
+        <tr><td>Ultra</td><td class="r">0.00390</td><td class="mono" style="font-size:13px">5.5&times; &middot; reserved for reasoning steps</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="aside">Each Reject or Inject at this gate triggers one regeneration, about $0.00071. The Fast flavor of a model changes the price and latency point, not the output quality.</p>
+
+    <p class="pricenote"><b>Prices</b> are list prices in USD per 1M tokens, input / output: Nano 0.05 / 0.20 &middot; Super 0.08 / 0.40 &middot; Ultra 0.50 / 2.20. Costs above are computed from logged token counts at these prices, not estimated.</p>
+  </section>
+
+  <!-- ===== CHAPTER: STRATEGY ===== -->
+  <section class="chapter wide" id="ch-strategy" role="tabpanel" aria-labelledby="tab-strategy" hidden>
+    <p class="sc">Chapter &middot; Strategy and lessons</p>
+    <h2 class="ch-title">The standing lessons, as marked up by the last reflection</h2>
+    <p class="ch-lede">After a run, Ultra proposes edits to the lessons that steer future runs. They are shown as revisions so you can see exactly what changed and why.</p>
+
+    <div class="seg" role="group" aria-label="View of the lessons">
+      <button type="button" data-mode="markup" aria-pressed="true">Revision marks</button>
+      <button type="button" data-mode="before" aria-pressed="false">Before</button>
+      <button type="button" data-mode="after" aria-pressed="false">After</button>
+    </div>
+
+    <div class="sheet" id="sheet" data-mode="markup">
+      <ol>
+        <li class="lesson keep"><span class="mk">Kept</span><span class="tx">Keep experiments under 20 seconds; use numpy only.</span></li>
+        <li class="lesson add"><span class="mk">Added</span><span class="tx">Numpy has no erf; use math.erf and never import scipy.</span><span class="why">From project 504f74a7, which crashed on <span class="mono" style="font-size:12px">np.erf</span>.</span></li>
+        <li class="lesson add"><span class="mk">Added</span><span class="tx">Explicitly list all model assumptions in the hypothesis and analysis.</span><span class="why">Echoes what you injected at the hypothesis gate of this project.</span></li>
+        <li class="lesson add"><span class="mk">Added</span><span class="tx">Validate simulation dynamics against an analytical equilibrium before interpreting.</span><span class="why">From project 656c3c0d, where every rate was zero and the verdict was inconclusive.</span></li>
+        <li class="lesson rem"><span class="mk">Struck</span><span class="tx">Run simulations for enough generations to reach 10^5&ndash;10^6 generations</span><span class="why"><b>Removed:</b> contradicts the 20 second runtime limit above.</span></li>
+      </ol>
+    </div>
+    <p class="legend"><span><span class="a">Highlighted</span> &nbsp;added</span><span><span class="r">Struck through</span> &nbsp;removed</span><span>Plain &nbsp;kept</span></p>
+
+    <div class="fedforward">
+      <svg width="22" height="22"><use href="#i-arrow"/></svg>
+      <p><b>These lessons are fed into the next run.</b> They are prepended to the prompts for design, repair and analysis. You approve edits at gate 3 of 3, so nothing changes silently. A second run of this same question will therefore avoid <span class="mono" style="font-size:13px">np.erf</span> and state its assumptions up front.</p>
+    </div>
+
+    <h3 class="sec">Why the lessons exist</h3>
+    <div class="failstory">
+      <p><span class="verdict failed"><svg width="15" height="15"><use href="#i-cross"/></svg>Failed</span> &nbsp;Project <span class="mono" style="font-size:14px">504f74a7</span> asked this same question earlier. Its script crashed with <code>AttributeError: module 'numpy' has no attribute 'erf'</code>. The automatic repair attempt repeated the same error, and the verdict was <em>failed</em>. Reflection turned that into the first added lesson above.</p>
+      <p>The proposal waiting in your Experiment gate uses only numpy and a permutation test, so it is not exposed to that failure.</p>
+    </div>
+  </section>
+
+  <!-- ===== CHAPTER: NOTEBOOK ===== -->
+  <section class="chapter wide" id="ch-notebook" role="tabpanel" aria-labelledby="tab-notebook" hidden>
+    <p class="sc">Chapter &middot; Notebook</p>
+    <h2 class="ch-title">The output artifact</h2>
+
+    <div class="willbe">
+      <b style="color:var(--teal-deep)">This project&rsquo;s notebook will be assembled here</b> once stage 7 is reached. Until then, open a finished one to see what you will get.
+    </div>
+
+    <div class="docbar" role="tablist" aria-label="Finished notebooks">
+      <button class="doctab" role="tab" aria-selected="true" data-doc="nb1"><b>656c3c0d</b>GC content and mutation rate &middot; inconclusive</button>
+      <button class="doctab" role="tab" aria-selected="false" data-doc="nb2"><b>Reference run</b>Codon usage and expression &middot; supports</button>
+    </div>
+
+    <!-- nb1 -->
+    <article class="nbdoc on" id="nb1">
+      <p class="sc">Notebook &middot; project <span class="mono" style="text-transform:none;letter-spacing:0">656c3c0d</span> &middot; finished</p>
+      <h3 class="nbt">Does GC content correlate with mutation rate in bacterial genomes?</h3>
+      <div class="simlabel" role="note"><svg width="22" height="22"><use href="#i-flask"/></svg><div>Tested on simulated data, within the model&rsquo;s stated assumptions<small>No real genome was measured. The verdict below describes the simulation, not the organism.</small></div></div>
+
+      <span class="sc">Code, as it ran</span>
+      <div class="cell"><span class="io">In&nbsp;[1]</span>
+<pre class="code" tabindex="0" aria-label="Notebook code"><code><span class="l"><span class="k">import</span> numpy <span class="k">as</span> np, math</span><span class="l">np.random.seed(<span class="n">7</span>)</span><span class="l"></span><span class="l">L, GENS, MU = <span class="n">10_000</span>, <span class="n">1000</span>, <span class="n">1e-10</span>       <span class="c"># sites, generations, per-site rate</span></span><span class="l"></span><span class="l"><span class="k">def</span> <span class="f">mean_delta_gc</span>(gc0):</span><span class="l">    gc = int(L * gc0)</span><span class="l">    n_mut = int(MU * L * GENS)                  <span class="c"># whole mutations only</span></span><span class="l">    <span class="k">return</span> (n_mut * (<span class="n">1</span> - gc0) - n_mut * gc0) / GENS</span><span class="l"></span><span class="l"><span class="k">for</span> g <span class="k">in</span> (<span class="n">0.7</span>, <span class="n">0.5</span>, <span class="n">0.3</span>):</span><span class="l">    <span class="f">print</span>(<span class="s">f"{g}: {mean_delta_gc(g):.3e}"</span>)</span><span class="l">R2 = <span class="n">0.0</span></span><span class="l"><span class="f">print</span>(<span class="s">f"R2 = {R2:.5f}"</span>)</span><span class="l"><span class="f">print</span>(<span class="s">"RESULT: inconclusive"</span>)</span></code></pre></div>
+      <div class="cell"><span class="io">Out&nbsp;[1]</span>
+<pre class="out">Starting GC fraction : mean ΔGC per generation (first 1k gens)
+0.7: 0.000e+00
+0.5: 0.000e+00
+0.3: 0.000e+00
+R² = 0.00000
+RESULT: inconclusive</pre></div>
+
+      <div class="verdictrow"><span class="verdict inconclusive"><svg width="15" height="15"><use href="#i-half"/></svg>Inconclusive</span>
+        <button class="claim" data-prov="nb1verdict" aria-pressed="false" style="font-size:19px">The simulation produced no change in GC content, so no relationship can be read from it.</button>
+        <button class="fn" data-prov="nb1verdict" aria-pressed="false" aria-label="Derivation of this verdict">v</button></div>
+      <div class="caveats"><h4 class="sc">Caveats</h4>Simulation assumes independent sites, no selection, constant mutation bias.</div>
+      <div class="nbfoot"><span>Reproduce: same image <span class="mono">palissy/base/python:3.12-numpy</span>, seed recorded.</span><button class="btn" type="button" data-toast>Download .ipynb</button><span id="toastA" role="status"></span></div>
+    </article>
+
+    <!-- nb2 -->
+    <article class="nbdoc" id="nb2">
+      <p class="sc">Notebook &middot; reference run of this question &middot; finished</p>
+      <h3 class="nbt">Does codon usage bias correlate with gene expression level in <em>E.&nbsp;coli</em>?</h3>
+      <div class="simlabel" role="note"><svg width="22" height="22"><use href="#i-flask"/></svg><div>Tested on simulated data, within the model&rsquo;s stated assumptions<small>Expression was generated as 0.8 &times; RCBS plus tRNA-supply noise. The correlation is built into the model; the test checks the pipeline, not <em>E. coli</em>.</small></div></div>
+
+      <span class="sc">Code, as it ran</span>
+      <div class="cell"><span class="io">In&nbsp;[1]</span><pre class="code" id="code-nb2" tabindex="0" aria-label="Notebook code"><code></code></pre></div>
+      <div class="cell"><span class="io">Out&nbsp;[1]</span>
+<pre class="out">Observed Spearman rho: 0.8922
+Empirical p-value (two-sided): 0.0010
+RESULT: supports</pre></div>
+
+      <div class="verdictrow"><span class="verdict supports"><svg width="15" height="15"><use href="#i-check"/></svg>Supports</span>
+        <button class="claim" data-prov="verdict" aria-pressed="false" style="font-size:19px">Spearman rho &gt; 0.5 supports the hypothesis</button>
+        <button class="fn" data-prov="verdict" aria-pressed="false" aria-label="Derivation of this verdict">v</button></div>
+      <div class="caveats"><h4 class="sc">Caveats</h4>The 0.8 coefficient and tRNA noise (sd 0.15) are assumptions of the simulation. The empirical p-value floor with 999 permutations is 0.001.</div>
+      <div class="nbfoot"><span>Reproduce: same image <span class="mono">palissy/base/python:3.12-numpy</span>, seed 42.</span><button class="btn" type="button" data-toast>Download .ipynb</button><span id="toastB" role="status"></span></div>
+    </article>
+  </section>
+  </div>
+
+</main>
+
+<!-- ================= RIGHT: MARGINALIA ================= -->
+<aside class="margin" id="margin" aria-label="Marginal note: derivation" aria-live="polite">
+  <header>
+    <span class="sc">In the margin</span>
+    <button class="close" id="marginClose" type="button">Close</button>
+  </header>
+  <div id="marginBody"></div>
+</aside>
+
+</div>
+
+<script>
+(function(){
+  /* ---------- provenance data ---------- */
+  var SRC = {
+    1:{t:"ScienceDirect Topics: Codon usage bias",u:"sciencedirect.com/topics/biochemistry-genetics-and-molecular-biology/codon-usage-bias"},
+    2:{t:"PMC2646356",u:"pmc.ncbi.nlm.nih.gov/articles/PMC2646356"},
+    3:{t:"GenScript: E. coli codon usage",u:"genscript.com/biology-glossary/17502/e-coli-codon-usage"},
+    4:{t:"bioRxiv 2023.08.31.555696",u:"biorxiv.org/content/10.1101/2023.08.31.555696v1.full-text"},
+    5:{t:"Frontiers in Microbiology 2024.1414422",u:"frontiersin.org/journals/microbiology/articles/10.3389/fmicb.2024.1414422/full"}
+  };
+  function srcStep(n){return {k:"source",kind:"Source",what:SRC[n].t,m:'<b>'+SRC[n].u+'</b>'};}
+  var tavily={k:"tool",kind:"Search",what:"Tavily search",m:'record <b>37e2bd1a03bb</b><br>5 sources &middot; 5.38 s'};
+  var nano={k:"model",kind:"Model call",what:"Nemotron-3 Nano 30B-A3B, summary",m:'record <b>b5ad5a228dae</b><br>934 in / 289 out &middot; $0.00010 &middot; 3.79 s'};
+  var ultra={k:"model",kind:"Model call",what:"Nemotron-3 Ultra 550B-A55B, hypothesis",m:'record <b>728224211939</b><br>1565 in / 2160 out &middot; $0.00553 &middot; 7.12 s'};
+  var inject={k:"human",kind:"Human decision",what:"You injected knowledge",q:"State the model's assumptions explicitly.",m:'step regenerated with your fact'};
+  var appr1={k:"human",kind:"Human decision",what:"You approved the hypothesis",m:'record <b>3e965191dae1</b>'};
+  var superexp={k:"model",kind:"Model call",what:"Nemotron-3 Super 120B-A12B, experiment",m:'record <b>9f5508fbc53d</b><br>258 in / 1714 out &middot; $0.00071 &middot; 10.43 s'};
+  var appr2={k:"human",kind:"Human decision",what:"You approved the experiment",m:'record <b>763d8f3af247</b>'};
+  var run={k:"sandbox",kind:"Sandbox run",what:"ConTree run, exit 0",m:'record <b>644fa51b1b1b</b><br>6.13 s &middot; rho = 0.8922, p = 0.0010'};
+  var analysis={k:"model",kind:"Model call",what:"Nemotron-3 Super 120B-A12B, analysis",m:'record <b>35952649090a</b>'};
+
+  var PROV = {
+    hyp:{
+      quote:"In E. coli, genes with higher Relative Codon Bias Strength (RCBS) exhibit higher expression levels.",
+      sub:"Claim in project 603c3237. Traced back from the claim, newest first.",
+      steps:[appr1,inject,ultra,nano,tavily,srcStep(1),srcStep(2),srcStep(5)]
+    },
+    summary:{
+      quote:"Codon usage bias is pervasive in E. coli and is tightly linked to how heavily a gene is expressed.",
+      sub:"Summary sentence. It is a Nano paraphrase of the five sources.",
+      steps:[nano,tavily,srcStep(1),srcStep(2),srcStep(3),srcStep(4),srcStep(5)]
+    },
+    exp:{
+      quote:"Proposed experiment: a 200-gene simulation with a 999-permutation Spearman test.",
+      sub:"The code awaiting your decision. No sandbox run exists yet.",
+      steps:[superexp,{k:"human",kind:"Input",what:"Approved hypothesis and your injected assumption",m:'record <b>3e965191dae1</b>'},{k:"human",kind:"Input",what:"Standing lessons",m:'numpy only &middot; under 20 seconds'},ultra]
+    },
+    verdict:{
+      quote:"Spearman rho > 0.5 supports the hypothesis.",
+      sub:"Verdict in the reference run. Traced back from the claim, newest first.",
+      steps:[analysis,run,appr2,superexp,appr1,inject,ultra,nano,tavily],
+      later:'Later cited by Ultra reflection <span class="mono">87c602b0bff2</span>, which proposed the lessons shown in Strategy.'
+    },
+    nb1verdict:{
+      quote:"The simulation produced no change in GC content, so no relationship can be read from it.",
+      sub:"Verdict in project 656c3c0d. Step records are in that project's database; only fields logged for this preview are shown.",
+      steps:[{k:"model",kind:"Model call",what:"Nemotron-3 Super 120B-A12B, analysis",m:'verdict: inconclusive'},{k:"sandbox",kind:"Sandbox run",what:"ConTree run",m:'output: every mean &Delta;GC = 0.000e+00; R&sup2; = 0.00000'},{k:"human",kind:"Human decision",what:"You approved the experiment",m:'before anything ran'},{k:"human",kind:"Human decision",what:"You approved the hypothesis",m:'gate 1 of 3'}],
+      later:'Its reflection added: <em>Validate simulation dynamics against an analytical equilibrium.</em>'
+    }
+  };
+  [1,2,3,4,5].forEach(function(n){
+    PROV["cite"+n]={
+      quote:SRC[n].t,
+      sub:"Source "+n+". Where it came from and what was done with it.",
+      steps:[nano,tavily,srcStep(n)],
+      later: n===1||n===2||n===5 ? 'Cited in the rationale of the hypothesis as ['+n+'].' : 'Read by Nano but not cited in the hypothesis.'
+    };
+  });
+
+  var margin=document.getElementById('margin'),marginBody=document.getElementById('marginBody');
+  var activeKey=null;
+  function renderEmpty(){
+    marginBody.innerHTML='<div class="margin-empty"><p style="margin:0 0 8px;font-family:var(--serif);font-size:17px;color:var(--teal-deep)">Nothing selected</p>Click an underlined claim or a numbered footnote. Its derivation opens here, step by step.</div>';
+  }
+  function render(key){
+    var d=PROV[key]; if(!d){renderEmpty();return}
+    var h='<div class="note"><p class="quote">'+escapeHtml(d.quote)+'</p><p class="sub">'+d.sub+'</p><ol class="chain">';
+    d.steps.forEach(function(s){
+      h+='<li class="'+s.k+'"><span class="kind">'+s.kind+'</span><span class="what">'+s.what+'</span>'+(s.q?'<span class="quote-h">&ldquo;'+escapeHtml(s.q)+'&rdquo;</span>':'')+'<span class="m">'+s.m+'</span></li>';
+    });
+    h+='</ol>'+(d.later?'<p class="later">'+d.later+'</p>':'')+'</div>';
+    marginBody.innerHTML=h;
+  }
+  function escapeHtml(s){return s.replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
+  function setActive(key){
+    activeKey=key;
+    document.querySelectorAll('[data-prov]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.prov===key))});
+    render(key);
+  }
+  document.addEventListener('click',function(e){
+    var b=e.target.closest('[data-prov]'); if(!b) return;
+    if(activeKey===b.dataset.prov && margin.classList.contains('open')){closeMargin();return}
+    setActive(b.dataset.prov);
+    if(window.matchMedia('(max-width:1240px)').matches){margin.classList.add('open')}
+  });
+  function closeMargin(){margin.classList.remove('open')}
+  document.getElementById('marginClose').addEventListener('click',closeMargin);
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeMargin()});
+  setActive('hyp');
+
+  /* ---------- chapters ---------- */
+  var tabs=document.querySelectorAll('[data-chapter]');
+  function showChapter(name){
+    tabs.forEach(function(t){t.setAttribute('aria-selected',String(t.dataset.chapter===name))});
+    document.querySelectorAll('.chapter').forEach(function(c){
+      var on=c.id==='ch-'+name; c.classList.toggle('on',on); if(on)c.removeAttribute('hidden');else c.setAttribute('hidden','');
+    });
+  }
+  tabs.forEach(function(t){t.addEventListener('click',function(){showChapter(t.dataset.chapter);window.scrollTo({top:document.querySelector('.chapter-wrap').offsetTop-8})})});
+  document.querySelectorAll('[data-goto-chapter]').forEach(function(b){b.addEventListener('click',function(){showChapter(b.dataset.gotoChapter);window.scrollTo({top:0})})});
+  document.querySelectorAll('#stages a, #waitPill').forEach(function(a){
+    a.addEventListener('click',function(e){
+      var id=a.getAttribute('href').slice(1),el=document.getElementById(id);
+      if(!el)return; e.preventDefault(); showChapter('research');
+      setTimeout(function(){el.scrollIntoView({behavior:'smooth',block:'start'});if(id==='gate')el.focus({preventScroll:true})},30);
+    });
+  });
+  document.querySelectorAll('.chapters button').forEach(function(b,i,all){
+    b.addEventListener('keydown',function(e){
+      var d=e.key==='ArrowDown'||e.key==='ArrowRight'?1:e.key==='ArrowUp'||e.key==='ArrowLeft'?-1:0; if(!d)return;
+      e.preventDefault();var n=all[(i+d+all.length)%all.length];n.focus();n.click();
+    });
+  });
+
+  /* ---------- expand / collapse stages ---------- */
+  document.querySelectorAll('.toggle[aria-controls]').forEach(function(t){
+    t.addEventListener('click',function(){
+      var b=document.getElementById(t.getAttribute('aria-controls')),open=t.getAttribute('aria-expanded')==='true';
+      t.setAttribute('aria-expanded',String(!open)); if(open)b.setAttribute('hidden','');else b.removeAttribute('hidden');
+      var s=t.querySelector('span'); if(s)s.textContent=s.textContent.replace(open?'Close':'Open',open?'Open':'Close');
+    });
+  });
+
+  /* ---------- hand-drawn thread in index ---------- */
+  var thread=document.getElementById('thread'),ROW=44,NODES=7;
+  (function(){
+    var seed=11;function rnd(){seed=(seed*9301+49297)%233280;return seed/233280}
+    var d='M12 '+(ROW/2),x=12;
+    for(var i=0;i<NODES-1;i++){
+      var y0=ROW/2+i*ROW,y1=y0+ROW,dx=(rnd()-.5)*5,dx2=(rnd()-.5)*5;
+      d+=' C '+(12+dx)+' '+(y0+ROW*.35)+', '+(12+dx2)+' '+(y0+ROW*.7)+', 12 '+y1;
+    }
+    var ns='http://www.w3.org/2000/svg';
+    thread.innerHTML='<defs><clipPath id="doneclip"><rect id="doneRect" x="-10" y="0" width="60" height="0"/></clipPath></defs>';
+    var p1=document.createElementNS(ns,'path');p1.setAttribute('d',d);p1.setAttribute('fill','none');p1.setAttribute('stroke','#B7C3A8');p1.setAttribute('stroke-width','1.6');p1.setAttribute('stroke-dasharray','2 4');p1.setAttribute('stroke-linecap','round');
+    var p2=document.createElementNS(ns,'path');p2.setAttribute('d',d);p2.setAttribute('fill','none');p2.setAttribute('stroke','#083D44');p2.setAttribute('stroke-width','2');p2.setAttribute('stroke-linecap','round');p2.setAttribute('clip-path','url(#doneclip)');
+    thread.appendChild(p1);thread.appendChild(p2);
+  })();
+  function setThread(cur){document.getElementById('doneRect').setAttribute('height',ROW/2+(cur-1)*ROW+1)}
+  setThread(3);
+
+  /* ---------- stage state ---------- */
+  function setCurrent(n,mode){
+    document.querySelectorAll('#stages li').forEach(function(li){
+      var k=+li.dataset.n;li.className=k<n?'done':k===n?'current':'';
+    });
+    setThread(n);
+  }
+
+  /* ---------- decision card ---------- */
+  var gateStage=document.getElementById('st3'),st4=document.getElementById('st4');
+  var reveals={reject:'r-reject',modify:'r-modify',inject:'r-inject'};
+  document.querySelectorAll('[data-reveal]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var id=reveals[b.dataset.reveal],open=b.getAttribute('aria-expanded')==='true';
+      document.querySelectorAll('[data-reveal]').forEach(function(x){x.setAttribute('aria-expanded','false')});
+      Object.keys(reveals).forEach(function(k){document.getElementById(reveals[k]).setAttribute('hidden','')});
+      if(!open){b.setAttribute('aria-expanded','true');var r=document.getElementById(id);r.removeAttribute('hidden');var f=r.querySelector('textarea');f.focus({preventScroll:true})}
+    });
+  });
+  function closeReveals(){
+    document.querySelectorAll('[data-reveal]').forEach(function(x){x.setAttribute('aria-expanded','false')});
+    Object.keys(reveals).forEach(function(k){document.getElementById(reveals[k]).setAttribute('hidden','')});
+  }
+  document.querySelectorAll('[data-cancel]').forEach(function(b){b.addEventListener('click',closeReveals)});
+
+  var elapsedSec=312,timer;
+  function fmt(s){var m=Math.floor(s/60),r=s%60;return (m<10?'0':'')+m+':'+(r<10?'0':'')+r}
+  function tick(){elapsedSec++;['elapsed','elapsed2'].forEach(function(id){document.getElementById(id).textContent=fmt(elapsedSec)})}
+  timer=setInterval(tick,1000);
+
+  var runTimers=[];
+  function startRun(how){
+    gateStage.classList.add('decided-state');
+    gateStage.classList.remove('current');gateStage.classList.add('done');
+    document.getElementById('st3badge').className='badge done';document.getElementById('st3badge').textContent='Approved';
+    document.getElementById('st3line').textContent=how==='modify'?'Your replacement code was approved and sent to the sandbox.':'You approved this design. It has been sent to the sandbox.';
+    document.getElementById('decidedText').innerHTML=how==='modify'?'<b>Modified and approved by you.</b> Your own code, exactly as written, is now running in the ConTree sandbox.':'<b>Approved by you.</b> The code above is now running in an isolated ConTree sandbox.';
+    setCurrent(4);
+    st4.classList.remove('pending');st4.classList.add('current');
+    var bd=document.getElementById('st4badge');bd.className='badge run';bd.textContent='Running';
+    document.getElementById('st4line').textContent='Running in ConTree. Nothing else is waiting on you right now.';
+    document.getElementById('statusText').textContent='running';
+    document.getElementById('waitText').textContent='No decision waiting. Sandbox is running.';
+    document.getElementById('waitPill').className='waiting-pill idle';document.getElementById('waitPill').setAttribute('href','#st4');
+    document.getElementById('mobBadge').textContent='Stage 4 of 7';document.getElementById('mobStage').textContent='Execution';
+    var rn=document.getElementById('runNode');rn.setAttribute('fill','#E5FF97');rn.setAttribute('stroke-dasharray','0');
+    document.getElementById('runNote').textContent='running now';
+    var log=document.getElementById('runlog');log.removeAttribute('hidden');log.innerHTML='';
+    var lines=[['00.0','session opened on contree, image palissy/base/python:3.12-numpy'],['00.8','checkpoint written: before-run'],['01.1','network: none &middot; file I/O: none &middot; timeout 20 s'],['01.4','executing script (22 lines)']];
+    lines.forEach(function(l,i){runTimers.push(setTimeout(function(){
+      var old=log.querySelector('.cur');if(old)old.classList.remove('cur');
+      var d=document.createElement('div');d.innerHTML='<span class="t">'+l[0]+'</span>'+l[1];if(i===lines.length-1)d.className='cur';log.appendChild(d);
+    },400+i*900))});
+    document.getElementById('st4').scrollIntoView({behavior:'smooth',block:'nearest'});
+    setTimeout(function(){document.getElementById('decidedBox').focus&&0},0);
+  }
+  function regen(kind,text){
+    gateStage.classList.add('regen');
+    var w=document.getElementById('waitline');
+    w.textContent=(kind==='reject'?'Rejection recorded. ':'Knowledge injected. ')+'Super is regenerating the design. Nothing runs.';
+    closeReveals();
+    document.getElementById('st3badge').textContent='Regenerating';
+    setTimeout(function(){
+      gateStage.classList.remove('regen');
+      var rb=document.getElementById('revBadge');rb.hidden=false;
+      w.textContent='Waiting for you. Nothing runs until you decide.';
+      document.getElementById('st3badge').textContent='Awaiting you';
+      document.getElementById('f-reject').value='';document.getElementById('f-inject').value='';
+    },2400);
+  }
+  document.getElementById('btnApprove').addEventListener('click',function(){startRun('approve')});
+  document.querySelectorAll('[data-confirm]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var k=b.dataset.confirm;
+      if(k==='reject'){var f=document.getElementById('f-reject');if(!f.value.trim()){f.setAttribute('aria-invalid','true');f.style.borderColor='#8A2F3C';f.placeholder='A reason is required before you can reject.';f.focus();return}f.style.borderColor='';regen('reject')}
+      else if(k==='inject'){var g=document.getElementById('f-inject');if(!g.value.trim()){g.style.borderColor='#8A2F3C';g.placeholder='Write the fact you want the model to use.';g.focus();return}g.style.borderColor='';regen('inject')}
+      else startRun('modify');
+    });
+  });
+  document.getElementById('undoBtn').addEventListener('click',function(){
+    runTimers.forEach(clearTimeout);runTimers=[];
+    gateStage.classList.remove('decided-state','done');gateStage.classList.add('current');
+    document.getElementById('st3badge').className='badge wait';document.getElementById('st3badge').textContent='Awaiting you';
+    document.getElementById('st3line').textContent='Nemotron-3 Super wrote a 22-line simulation that tests the prediction with a permutation test. It has not run, and it will not until you approve it.';
+    st4.classList.remove('current');st4.classList.add('pending');
+    var bd=document.getElementById('st4badge');bd.className='badge pend';bd.textContent='Upcoming';
+    document.getElementById('st4line').textContent='Runs the approved code inside a ConTree sandbox and records exit code, output and wall time.';
+    document.getElementById('runlog').setAttribute('hidden','');
+    document.getElementById('waitText').textContent='1 decision waiting: Experiment design';
+    document.getElementById('waitPill').className='waiting-pill';document.getElementById('waitPill').setAttribute('href','#gate');
+    document.getElementById('mobBadge').textContent='Stage 3 of 7';document.getElementById('mobStage').textContent='Experiment design';
+    var rn=document.getElementById('runNode');rn.setAttribute('fill','#FCFCF8');rn.setAttribute('stroke-dasharray','3 2');document.getElementById('runNote').textContent='next, after your approval';
+    setCurrent(3);
+  });
+
+  /* ---------- strategy modes ---------- */
+  document.querySelectorAll('.seg button').forEach(function(b){
+    b.addEventListener('click',function(){
+      document.querySelectorAll('.seg button').forEach(function(x){x.setAttribute('aria-pressed','false')});
+      b.setAttribute('aria-pressed','true');document.getElementById('sheet').dataset.mode=b.dataset.mode;
+    });
+  });
+
+  /* ---------- notebook docs ---------- */
+  document.getElementById('code-nb2').innerHTML=document.getElementById('code-exp').innerHTML;
+  document.querySelectorAll('.doctab').forEach(function(t){
+    t.addEventListener('click',function(){
+      document.querySelectorAll('.doctab').forEach(function(x){x.setAttribute('aria-selected','false')});
+      t.setAttribute('aria-selected','true');
+      document.querySelectorAll('.nbdoc').forEach(function(d){d.classList.toggle('on',d.id===t.dataset.doc)});
+    });
+  });
+  document.querySelectorAll('[data-toast]').forEach(function(b){
+    b.addEventListener('click',function(){var s=b.parentNode.querySelector('[role=status]');s.textContent='Preview only in this mockup.';setTimeout(function(){s.textContent=''},2500)});
+  });
+})();
+</script>
+</body>
+</html>

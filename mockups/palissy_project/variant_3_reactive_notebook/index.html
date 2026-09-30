@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>codon-usage-vs-expression.palissy — Palissy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1C2024; --ink2:#334155; --mute:#56606E; --line:#E8E8EC; --line2:#D5D9E0;
+  --panel:#FCFCFD; --paper:#FFFFFF;
+  --em:#10B981; --em-m:#0F9F78; --em-d:#047857; --em-bg:#ECFDF5; --em-line:#A7E3CF;
+  --amber:#8F4408; --amber-bg:#FEF6E0; --amber-line:#E9C46A;
+  --red:#B42318; --red-bg:#FEF0EE; --red-line:#F2B8B2;
+  --sans:"Hanken Grotesk","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono","Cascadia Mono",ui-monospace,Consolas,monospace;
+  --serif:"Newsreader","Iowan Old Style",Georgia,serif;
+  --gut:88px; --rail:150px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth;scroll-padding-top:120px}
+body{
+  margin:0;font-family:var(--sans);font-size:15px;line-height:1.55;color:var(--ink);background:#fff;
+  background-image:linear-gradient(#EEF0F3 1px,transparent 1px),linear-gradient(90deg,#EEF0F3 1px,transparent 1px);
+  background-size:32px 32px;background-position:-1px -1px;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--em-d)}
+:focus-visible{outline:3px solid var(--em-m);outline-offset:2px;border-radius:3px}
+.mono{font-family:var(--mono)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+svg{display:block}
+
+/* ---------- top bar ---------- */
+.topbar{position:sticky;top:0;z-index:40;background:#fff;border-bottom:1px solid var(--line2);height:56px;display:flex;align-items:center;gap:18px;padding:0 24px}
+.brand{display:flex;align-items:center;gap:9px;text-decoration:none;color:var(--ink);font-family:var(--serif);font-size:21px;font-weight:500;letter-spacing:-.01em}
+.brand i{width:20px;height:20px;border:2px solid var(--ink);border-radius:3px;box-shadow:3px 3px 0 var(--em-m);display:block;position:relative}
+.brand i::after{content:"";position:absolute;inset:4px;background:var(--em-d);border-radius:1px}
+.sep{color:var(--line2);font-size:22px;font-weight:300}
+.fname{font-family:var(--mono);font-size:13.5px;font-weight:500;color:var(--ink);display:flex;align-items:center;gap:7px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pid{font-family:var(--mono);font-size:12.5px;color:var(--mute);white-space:nowrap}
+.chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11.5px;font-weight:500;line-height:1;padding:4px 8px 4px 7px;border:1px solid var(--line2);border-radius:4px;background:#fff;color:var(--ink2);white-space:nowrap}
+.chip svg{width:12px;height:12px;flex:none}
+.chip.run{border-color:var(--em-line);background:var(--em-bg);color:var(--em-d)}
+.chip.wait{border-color:var(--amber-line);background:var(--amber-bg);color:var(--amber)}
+.chip.ok{border-color:var(--em-line);background:var(--em-bg);color:var(--em-d)}
+.chip.fail{border-color:var(--red-line);background:var(--red-bg);color:var(--red)}
+.chip.inc{border-color:var(--amber-line);background:var(--amber-bg);color:var(--amber)}
+.spacer{flex:1}
+.tstat{font-family:var(--mono);font-size:12.5px;color:var(--mute);white-space:nowrap}
+.tstat b{color:var(--ink);font-weight:600}
+.switch{display:flex;align-items:center;gap:8px;border:1px solid var(--line2);background:#fff;border-radius:5px;padding:5px 10px 5px 8px;font-size:13px;font-weight:600;color:var(--ink)}
+.switch .tk{width:26px;height:14px;border:1.5px solid var(--ink);border-radius:2px;position:relative;background:#fff}
+.switch .tk::after{content:"";position:absolute;top:1px;left:1px;width:8px;height:8px;background:var(--ink);transition:transform .15s}
+.switch[aria-checked="true"]{background:var(--em-bg);border-color:var(--em-m)}
+.switch[aria-checked="true"] .tk{background:var(--em-d);border-color:var(--em-d)}
+.switch[aria-checked="true"] .tk::after{transform:translateX(12px);background:#fff}
+
+/* ---------- page layout ---------- */
+.page{display:grid;grid-template-columns:168px minmax(0,1fr);gap:0;max-width:1400px;margin:0 auto;padding:28px 24px 120px 12px}
+body.drawer-open .page{padding-right:392px;max-width:none;margin:0}
+body.drawer-open .minimap{display:none}
+body.drawer-open .page{grid-template-columns:minmax(0,1fr)}
+.minimap{position:sticky;top:84px;align-self:start;padding-right:16px;font-size:13px}
+.minimap h2{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:0 0 8px 8px}
+.minimap ol{list-style:none;margin:0 0 18px;padding:0;position:relative}
+.minimap a{display:flex;align-items:center;gap:9px;padding:5px 8px;text-decoration:none;color:var(--ink2);border-left:2px solid transparent;font-weight:500}
+.minimap a:hover{background:#F4F6F8;color:var(--ink)}
+.minimap a[aria-current="true"]{border-left-color:var(--ink);color:var(--ink);font-weight:700;background:#fff}
+.minimap a.up{border-left-color:var(--em-m);background:var(--em-bg);color:var(--em-d)}
+.minimap .n{font-family:var(--mono);font-size:11px;width:16px;color:var(--mute)}
+.mdot{width:10px;height:10px;flex:none;border-radius:50%}
+.mdot[data-s="done"]{background:var(--em-d)}
+.mdot[data-s="running"]{border:2px solid var(--em-d);border-top-color:transparent;animation:spin 1s linear infinite}
+.mdot[data-s="waiting"]{background:var(--amber);border-radius:1px;transform:rotate(45deg) scale(.9)}
+.mdot[data-s="pending"]{border:1.5px dashed #7C8696}
+.mdot[data-s="ext"]{border:1.5px solid var(--em-m);background:#fff}
+
+.nb{position:relative;min-width:0}
+#lineSvg{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:5;overflow:visible}
+.spine{stroke:var(--line2);stroke-width:2}
+.spine.dash{stroke-dasharray:3 5}
+.arc{fill:none;stroke:var(--em-line);stroke-width:1.5;opacity:0;transition:opacity .15s}
+body.lineage .arc{opacity:.9}
+.arc.hot{stroke:var(--em-d);stroke-width:2.5;opacity:1}
+body.sel:not(.lineage) .arc:not(.hot){display:none}
+body.sel .arc:not(.hot){opacity:.25}
+
+/* ---------- cells ---------- */
+.cell{display:grid;grid-template-columns:var(--gut) minmax(0,1fr) var(--rail);margin-bottom:22px;position:relative;transition:opacity .15s}
+body.sel .cell:not(.up):not(.picked){opacity:.5}
+.gut{position:relative}
+.num{position:absolute;left:0;top:13px;font-family:var(--mono);font-size:12px;font-weight:500;color:var(--mute);width:26px;text-align:right;background:none;border:0;padding:2px 0;border-radius:3px}
+.num:hover{color:var(--ink);text-decoration:underline}
+.ins{position:absolute;left:5px;top:40px;width:18px;height:18px;border:1px solid var(--line2);border-radius:50%;background:#fff;color:var(--mute);padding:0;display:grid;place-items:center;opacity:.55}
+.ins svg{width:10px;height:10px}
+.cell:hover .ins,.ins:focus-visible{opacity:1;border-color:var(--ink);color:var(--ink)}
+.dot{position:absolute;left:63px;top:10px;width:28px;height:28px;background:#fff;border-radius:50%;display:grid;place-items:center;z-index:6}
+.dot svg{width:20px;height:20px}
+.spin{animation:spin 1s linear infinite;transform-origin:center}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(180,83,9,.45)}50%{box-shadow:0 0 0 6px rgba(180,83,9,0)}}
+
+.body{background:var(--paper);border:1px solid var(--line2);border-radius:6px;min-width:0;position:relative}
+.cell.up .body{border-color:var(--em-m);box-shadow:-3px 0 0 var(--em-m)}
+.cell.picked .body{border-color:var(--ink)}
+.cell[data-state="pending"] .body{background:rgba(252,252,253,.85);border-style:dashed}
+.cell[data-state="waiting"] .body,.cell[data-state="running"] .body{border-color:var(--ink);border-width:1.5px}
+
+.chead{display:flex;align-items:center;gap:10px;padding:0 10px 0 4px;min-height:42px;border-bottom:1px solid var(--line);background:var(--panel);border-radius:6px 6px 0 0}
+.cell[data-open="false"] .chead{border-bottom:0;border-radius:6px}
+.tog{display:flex;align-items:center;gap:10px;flex:1;min-width:0;background:none;border:0;padding:8px 6px;text-align:left}
+.tog .chev{width:14px;height:14px;flex:none;color:var(--mute);transition:transform .15s}
+.cell[data-open="true"] .tog .chev{transform:rotate(90deg)}
+.stitle{font-weight:700;font-size:15px}
+.scall{font-family:var(--mono);font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slabel{font-family:var(--mono);font-size:11.5px;font-weight:500;padding:3px 7px;border-radius:4px;white-space:nowrap}
+[data-state="done"] .slabel{color:var(--em-d);background:var(--em-bg)}
+[data-state="running"] .slabel{color:var(--em-d);background:var(--em-bg)}
+[data-state="waiting"] .slabel{color:var(--amber);background:var(--amber-bg)}
+[data-state="pending"] .slabel{color:var(--mute);background:#F1F3F5}
+[data-state="ext"] .slabel{color:var(--ink2);background:#F1F3F5}
+.runb{width:28px;height:28px;border:1px solid var(--line2);border-radius:50%;background:#fff;display:grid;place-items:center;padding:0;color:var(--em-d)}
+.runb svg{width:12px;height:12px}
+.runb:hover:not([aria-disabled="true"]){border-color:var(--em-d);background:var(--em-bg)}
+.runb[aria-disabled="true"]{color:var(--mute);background:#F4F5F7;cursor:not-allowed}
+.grip{width:14px;height:18px;color:#8A94A3;flex:none}
+.cout{padding:14px 18px 16px}
+.cell[data-open="false"] .more{display:none}
+.sum{margin:0}
+.kicker{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:0 0 4px}
+.quote{font-family:var(--serif);font-size:17.5px;line-height:1.5;margin:0;color:var(--ink)}
+.quote em{font-style:italic}
+.hl{font-family:var(--serif);font-size:21px;line-height:1.35;margin:0 0 10px;font-weight:500;letter-spacing:-.005em}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:10px 0 0;font-size:14px}
+.kv dt{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);padding-top:3px}
+.kv dd{margin:0;font-family:var(--serif);font-size:16px;line-height:1.5}
+
+/* claims & citations */
+.claim{background:none;border:0;padding:0 1px;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer;border-bottom:2px dotted var(--em-m);border-radius:1px}
+.claim:hover{background:var(--em-bg)}
+.claim[aria-expanded="true"]{background:var(--em-bg);border-bottom-style:solid}
+.cite{font-family:var(--mono);font-size:12px;font-weight:600;background:var(--em-bg);border:1px solid var(--em-line);color:var(--em-d);border-radius:3px;padding:0 4px;margin:0 1px;cursor:pointer;line-height:1.5;vertical-align:baseline}
+.cite:hover,.cite[aria-expanded="true"]{background:var(--em-d);color:#fff;border-color:var(--em-d)}
+.srcrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.srcrow .cite{font-size:12px;padding:2px 7px;font-weight:500}
+.srclist{list-style:none;margin:14px 0 0;padding:0;border-top:1px solid var(--line)}
+.srclist li{display:grid;grid-template-columns:34px 1fr;gap:6px;padding:8px 0;border-bottom:1px solid var(--line);align-items:baseline}
+.srclist .t{font-weight:600;font-size:14px}
+.srclist .u{font-family:var(--mono);font-size:11.5px;color:var(--mute);word-break:break-all}
+
+/* rail */
+.rail{padding-left:14px;min-width:0}
+.railbtn{display:block;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:5px;padding:8px 8px 8px 10px;font-family:var(--mono);font-size:12px;color:var(--ink2);line-height:1.5}
+.railbtn:hover{border-color:var(--line2);background:#fff}
+.railbtn[aria-expanded="true"]{border-color:var(--ink);background:#fff}
+.railbtn .lat{display:block;font-size:19px;font-weight:600;color:var(--ink);letter-spacing:-.02em;line-height:1.2}
+.railbtn .cost{font-weight:600;color:var(--ink)}
+.railbtn .tk{display:block;color:var(--mute)}
+.railbtn .tr{display:block;margin-top:4px;font-size:11px;color:var(--em-d);font-weight:600}
+.railbtn .chip{margin:5px 0 4px}
+.mchip{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:11.5px;font-weight:600;padding:3px 7px 3px 6px;border-radius:4px;border:1px solid;line-height:1.2}
+.mchip::before{content:"";width:7px;height:7px;background:currentColor;flex:none}
+.mchip.nano{color:#0B6B5B;border-color:#9BDCCB;background:#F0FBF8}
+.mchip.nano::before{border-radius:50%}
+.mchip.super{color:#0A5A86;border-color:#A8D3EC;background:#F1F8FD}
+.mchip.super::before{}
+.mchip.ultra{color:#7A3B06;border-color:#E9C79B;background:#FFF7EA}
+.mchip.ultra::before{transform:rotate(45deg) scale(.85)}
+.mchip.cts{color:var(--ink2);border-color:var(--line2);background:#F6F7F9}
+
+.trace{display:none;margin:0;padding:12px 18px 14px;border-top:1px dashed var(--line2);background:var(--panel);font-family:var(--mono);font-size:12px;color:var(--ink2);border-radius:0 0 6px 6px}
+.trace.on{display:block}
+.trace h4{margin:0 0 6px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);font-weight:500}
+.trace ol{list-style:none;margin:0;padding:0 0 0 14px;border-left:2px solid var(--em-line)}
+.trace li{position:relative;padding:2px 0 2px 10px}
+.trace li::before{content:"";position:absolute;left:-19px;top:10px;width:8px;height:8px;background:#fff;border:2px solid var(--em-d);border-radius:50%}
+.trace li b{color:var(--ink);font-weight:600}
+
+/* code */
+.codegrid{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:0;border:1px solid var(--line2);border-radius:5px;background:var(--panel);overflow:hidden}
+.codewrap{min-width:0;border-right:1px solid var(--line2)}
+.codebar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 12px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11.5px;color:var(--mute);background:#fff}
+pre.code{margin:0;padding:10px 0 12px;font-family:var(--mono);font-size:13px;line-height:1.65;overflow-x:auto;counter-reset:ln;background:var(--panel);color:var(--ink);tab-size:4}
+pre.code code{display:block;min-width:max-content;font-family:inherit}
+.l{display:block;counter-increment:ln;padding-right:16px;white-space:pre;min-height:1.65em}
+.l::before{content:counter(ln);display:inline-block;width:40px;padding-right:14px;text-align:right;color:#7C8696;position:sticky;left:0;background:var(--panel)}
+.k{color:#0B6B50;font-weight:600}.f{color:#1C2024;font-weight:700}.n{color:#0F5FA8}.s{color:#9A4A06}.c{color:#5B6676;font-style:italic}
+.willrun{padding:14px 16px;font-size:13.5px;background:#fff}
+.willrun h3{margin:0 0 4px;font-size:14px;font-weight:700}
+.willrun p{margin:0 0 10px;color:var(--ink2);font-size:13.5px}
+.willrun dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:5px 10px;font-family:var(--mono);font-size:12px}
+.willrun dt{color:var(--mute)}
+.willrun dd{margin:0;color:var(--ink);word-break:break-all}
+.neg{color:var(--ink)}
+.willrun .no{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0 0}
+
+/* decision cell */
+.decision{position:relative;margin:20px 6px 6px 0;background:#fff;border:2px solid var(--em-m);border-radius:4px;box-shadow:6px 6px 0 var(--em-m);padding:16px 18px 16px}
+.decision::before{content:"";position:absolute;left:38px;top:-22px;width:2px;height:20px;background:var(--em-m)}
+.dhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-bottom:8px}
+.gate-tag{font-family:var(--mono);font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;background:var(--ink);color:#fff;padding:4px 8px;border-radius:3px}
+.waitmsg,.donemsg{font-weight:700;font-size:16px;display:flex;align-items:center;gap:9px}
+.waitmsg i{width:11px;height:11px;background:var(--amber);transform:rotate(45deg);animation:pulse 1.8s infinite}
+.donemsg{color:var(--em-d)}
+.donemsg svg{width:20px;height:20px}
+.dcopy{margin:0 0 14px;font-size:14.5px;color:var(--ink2);max-width:66ch}
+.dcopy b{color:var(--ink)}
+.acts{display:flex;flex-wrap:wrap;gap:12px 14px;align-items:center}
+.btn{font-weight:700;font-size:14px;padding:8px 14px;border:1.5px solid var(--ink);background:#fff;border-radius:4px;display:inline-flex;align-items:center;gap:8px;transition:transform .08s,box-shadow .08s;line-height:1.2}
+.btn svg{width:14px;height:14px}
+.btn:hover{background:#F4F6F8}
+.btn[aria-expanded="true"]{background:var(--ink);color:#fff}
+.btn.primary{background:var(--em-d);color:#fff;box-shadow:4px 4px 0 var(--ink);border-color:var(--ink)}
+.btn.primary:hover{background:#036a4b;transform:translate(-1px,-1px);box-shadow:5px 5px 0 var(--ink)}
+.btn.primary:active{transform:translate(4px,4px);box-shadow:0 0 0 var(--ink)}
+.btn.lock{border-style:dashed;border-color:#7C8696;color:var(--mute);background:#F4F5F7;cursor:not-allowed;font-family:var(--mono);font-size:12.5px;font-weight:500}
+.btn.lock:hover{background:#F4F5F7}
+.apanel{margin-top:14px;padding:12px 14px;border:1px solid var(--line2);background:var(--panel);border-radius:4px}
+.apanel label{display:block;font-weight:700;font-size:13.5px;margin-bottom:2px}
+.apanel .hint{margin:0 0 8px;font-size:13px;color:var(--mute)}
+.apanel textarea{width:100%;min-height:76px;resize:vertical;border:1.5px solid var(--ink);border-radius:3px;padding:8px 10px;font-family:var(--sans);font-size:14.5px;background:#fff;color:var(--ink)}
+.apanel textarea.codey{font-family:var(--mono);font-size:12.5px;min-height:190px;line-height:1.55}
+.apanel .row{display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap}
+.apanel .err{color:var(--red);font-weight:600;font-size:13px}
+.linkbtn{background:none;border:0;padding:2px;color:var(--ink2);text-decoration:underline;text-underline-offset:3px;font-size:13.5px;font-weight:600}
+.alts{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line2);font-size:13px;color:var(--ink2);display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline}
+.alts b{font-family:var(--mono);font-weight:600;color:var(--ink)}
+.alts .lab{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+.dlog{list-style:none;margin:12px 0 0;padding:0;font-size:13.5px}
+.dlog li{padding:6px 0;border-top:1px solid var(--line);display:flex;gap:10px}
+.dlog .t{font-family:var(--mono);font-size:11.5px;color:var(--mute);white-space:nowrap;padding-top:2px}
+.regen{display:flex;align-items:center;gap:10px;margin-top:12px;font-weight:600;color:var(--em-d)}
+.regen svg{width:18px;height:18px}
+
+/* execution */
+.exstate{display:flex;flex-wrap:wrap;gap:8px 22px;align-items:center;font-family:var(--mono);font-size:12.5px;color:var(--ink2);margin:0 0 12px}
+.exstate b{color:var(--ink);font-weight:600}
+.lockrow{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:12.5px;color:var(--mute);margin:0 0 4px}
+.runlive{display:none;margin:2px 0 10px;border:1px solid var(--em-line);background:var(--em-bg);border-radius:4px;padding:10px 12px;font-family:var(--mono);font-size:12.5px;color:var(--ink)}
+.runlive.on{display:block}
+.runlive .bar{height:6px;background:#fff;border:1px solid var(--em-line);margin-top:8px;position:relative;overflow:hidden}
+.runlive .bar i{position:absolute;top:0;left:0;height:100%;width:32%;background:var(--em-d);animation:slide 1.6s ease-in-out infinite}
+@keyframes slide{0%{left:-32%}100%{left:100%}}
+.runlive ul{list-style:none;margin:0;padding:0}
+.branches{margin-top:14px;border-top:1px dashed var(--line2);padding-top:12px}
+.branches h4{margin:0 0 6px;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);font-weight:500;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.branches svg{width:100%;max-width:640px;height:auto}
+.branches .cap{font-size:13px;color:var(--ink2);margin:4px 0 0}
+
+/* cost */
+.tiles{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--line2);border-radius:5px;background:var(--panel)}
+.tile{padding:12px 18px;border-right:1px solid var(--line2);min-width:170px}
+.tile:last-child{border-right:0}
+.tile .big{font-family:var(--mono);font-size:26px;font-weight:600;letter-spacing:-.03em;line-height:1.2}
+.tile .sm{font-size:12.5px;color:var(--mute)}
+table.tbl{width:100%;border-collapse:collapse;margin-top:10px;font-size:13.5px}
+.tbl caption{text-align:left;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);padding:10px 0 4px}
+.tbl th{font-weight:600;text-align:left;font-size:12px;color:var(--mute);border-bottom:1.5px solid var(--ink);padding:5px 8px 5px 0;font-family:var(--mono)}
+.tbl td{padding:8px 8px 8px 0;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl td.m,.tbl th.m{font-family:var(--mono);text-align:right;padding-right:14px;white-space:nowrap}
+.tbl .why{color:var(--ink2);font-size:13px}
+.bar2{height:9px;background:#F1F3F5;border:1px solid var(--line2);min-width:90px;position:relative}
+.bar2 i{position:absolute;inset:0 auto 0 0;background:var(--ink)}
+.bar2.u i{background:repeating-linear-gradient(135deg,#7A3B06 0 4px,#9A5A1C 4px 7px)}
+.bar2.s i{background:#0A5A86}
+.bar2.n i{background:#0B6B5B}
+.note{font-size:12.5px;color:var(--mute);margin:12px 0 0}
+.twocol{display:grid;grid-template-columns:1.25fr 1fr;gap:26px}
+
+/* strategy diff */
+.diff{border:1px solid var(--line2);border-radius:5px;background:var(--panel);font-family:var(--mono);font-size:13px;overflow:hidden}
+.diff .dh{padding:7px 12px;border-bottom:1px solid var(--line);background:#fff;color:var(--mute);font-size:12px}
+.dl{display:grid;grid-template-columns:26px 74px 1fr;gap:0 4px;padding:7px 12px 7px 0;border-bottom:1px solid var(--line);align-items:baseline;line-height:1.5}
+.dl:last-child{border-bottom:0}
+.dl .g{text-align:center;font-weight:700;font-size:15px}
+.dl .w{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.dl .tx{font-family:var(--sans);font-size:14.5px}
+.dl .why{display:block;font-size:12.5px;color:var(--ink2);margin-top:2px}
+.dl.add{background:#E8F8F0}.dl.add .g,.dl.add .w{color:var(--em-d)}
+.dl.del{background:#FDECEA}.dl.del .g,.dl.del .w{color:var(--red)}
+.dl.del .tx span.st{text-decoration:line-through;text-decoration-thickness:1.5px}
+.dl.keep .g,.dl.keep .w{color:var(--mute)}
+
+/* notebook viewer */
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--line2);margin:0 0 14px;flex-wrap:wrap}
+.tab{background:none;border:1px solid transparent;border-bottom:0;padding:8px 14px;font-weight:600;font-size:13.5px;font-family:var(--mono);color:var(--mute);margin-bottom:-1px;border-radius:4px 4px 0 0}
+.tab[aria-selected="true"]{background:#fff;border-color:var(--line2);color:var(--ink)}
+.simban{display:flex;gap:10px;align-items:flex-start;padding:10px 14px;background:var(--amber-bg);border:1.5px solid var(--amber-line);border-left:6px solid var(--amber);border-radius:3px;color:#5C3005;font-weight:700;font-size:14.5px;margin-bottom:14px}
+.simban svg{width:20px;height:20px;flex:none;margin-top:1px;color:var(--amber)}
+.simban span{display:block;font-weight:500;font-size:13px;color:#6B3D0C;margin-top:1px}
+.nbcell{display:grid;grid-template-columns:62px 1fr;gap:0 10px;margin:0 0 10px}
+.nbcell .pr{font-family:var(--mono);font-size:11.5px;color:var(--mute);text-align:right;padding-top:8px}
+.nbcell .bx{border:1px solid var(--line2);border-radius:4px;background:var(--panel);min-width:0}
+.nbcell .bx.md{background:#fff;padding:10px 16px}
+.nbcell h3{font-family:var(--serif);font-weight:500;font-size:22px;margin:0;line-height:1.3}
+.nbcell .out{font-family:var(--mono);font-size:13px;line-height:1.6;padding:10px 14px;margin:0;white-space:pre-wrap;background:#fff;border-radius:4px}
+.hidden-code{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:8px 14px;font-family:var(--mono);font-size:12.5px;color:var(--ink2)}
+.verdictrow{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;padding:10px 14px;font-size:14.5px}
+.caveat{padding:10px 14px;font-size:14.5px;border-left:4px solid var(--amber-line);background:#fff}
+.caveat b{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);display:block;font-weight:500}
+.ref{margin-top:16px;padding-top:14px;border-top:1px dashed var(--line2);font-size:14.5px}
+.ref .kicker{margin-bottom:6px}
+
+/* ---------- drawer ---------- */
+.drawer{position:fixed;top:56px;right:0;bottom:0;width:380px;background:#fff;border-left:2px solid var(--ink);z-index:30;overflow-y:auto;padding:18px 20px 40px;box-shadow:-6px 0 0 rgba(28,32,36,.08)}
+.drawer[hidden]{display:none}
+.drawer .dtop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.drawer h2{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:0;font-weight:500}
+.xbtn{width:30px;height:30px;border:1px solid var(--line2);background:#fff;border-radius:4px;display:grid;place-items:center;padding:0;flex:none}
+.xbtn svg{width:12px;height:12px}
+.xbtn:hover{border-color:var(--ink)}
+.drawer .ctext{font-family:var(--serif);font-size:19px;line-height:1.4;margin:8px 0 6px;border-left:3px solid var(--em-m);padding-left:12px}
+.drawer .cnote{font-size:13px;color:var(--ink2);margin:0 0 14px}
+.chain{list-style:none;margin:0;padding:0;position:relative}
+.nd{position:relative;padding:0 0 16px 40px}
+.nd::before{content:"";position:absolute;left:13px;top:28px;bottom:0;width:2px;background:var(--em-m)}
+.nd:last-child::before{display:none}
+.nd .ic{position:absolute;left:0;top:0;width:28px;height:28px;border:1.5px solid var(--ink);background:#fff;display:grid;place-items:center;border-radius:4px}
+.nd .ic svg{width:15px;height:15px}
+.nd[data-k="human"] .ic{background:var(--amber-bg);border-color:var(--amber)}
+.nd[data-k="run"] .ic{background:var(--ink);color:#fff}
+.nd[data-k="model"] .ic{background:var(--em-bg);border-color:var(--em-d)}
+.nd .k{font-family:var(--mono);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--mute)}
+.nd .tt{font-weight:700;font-size:14.5px;line-height:1.3}
+.nd .id{font-family:var(--mono);font-size:11.5px;color:var(--em-d);font-weight:600}
+.nd dl{margin:4px 0 0;display:grid;grid-template-columns:auto 1fr;gap:1px 10px;font-family:var(--mono);font-size:12px}
+.nd dt{color:var(--mute)}.nd dd{margin:0;color:var(--ink);word-break:break-word}
+.nd.claimnd .ic{background:var(--em-d);color:#fff;border-color:var(--em-d)}
+.drawer .tot{border-top:1.5px solid var(--ink);padding-top:10px;font-family:var(--mono);font-size:12px;color:var(--ink2)}
+
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:50;background:var(--ink);color:#fff;padding:10px 16px;border-radius:4px;font-weight:600;font-size:14px;box-shadow:4px 4px 0 var(--em-m);max-width:90vw}
+.toast[hidden]{display:none}
+
+.mdcell{display:grid;grid-template-columns:var(--gut) minmax(0,1fr) var(--rail);margin-bottom:26px}
+.mdcell .num{left:0}
+.titlebox{grid-column:2;background:#fff;border:1px solid var(--line2);border-radius:6px;padding:22px 26px 18px;position:relative}
+.titlebox .kicker{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.titlebox h1{font-family:var(--serif);font-weight:400;font-size:clamp(28px,3.6vw,44px);line-height:1.13;letter-spacing:-.02em;margin:8px 0 14px}
+.titlebox h1 em{font-style:normal;color:var(--em-d)}
+.statusline{display:flex;flex-wrap:wrap;gap:6px 22px;font-family:var(--mono);font-size:12.5px;color:var(--ink2);padding-top:12px;border-top:1px solid var(--line)}
+.statusline b{color:var(--ink);font-weight:500}
+.pipe{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:0 0 14px;padding:0;list-style:none}
+.pipe li{font-family:var(--mono);font-size:11px;color:var(--mute);border-top:4px solid var(--line2);padding-top:5px;line-height:1.3}
+.pipe li[data-s="done"]{border-top-color:var(--em-d);color:var(--ink)}
+.pipe li[data-s="waiting"]{border-top:4px solid var(--amber);color:var(--amber);font-weight:600}
+.pipe li[data-s="running"]{border-top:4px solid var(--em-d);color:var(--em-d);font-weight:600}
+.pipe li[data-s="pending"]{border-top:4px dotted #8C96A4}
+.pipe b{display:block;font-weight:600}
+
+.foot{margin-top:40px;font-family:var(--mono);font-size:12px;color:var(--mute)}
+
+/* ---------- responsive ---------- */
+@media (max-width:1180px){
+  .page{grid-template-columns:minmax(0,1fr);padding-left:14px}
+  .minimap{position:sticky;top:56px;z-index:20;padding:0;margin:-28px -24px 20px -14px;background:#fff;border-bottom:1px solid var(--line2);overflow-x:auto}
+  .minimap h2{display:none}
+  .minimap ol{display:flex;margin:0}
+  .minimap ol + ol{border-left:1px solid var(--line2);margin:0}
+  .minimap a{white-space:nowrap;border-left:0;border-bottom:3px solid transparent;padding:10px 12px}
+  .minimap a[aria-current="true"]{border-bottom-color:var(--ink)}
+  .minimap a.up{border-bottom-color:var(--em-m)}
+  html{scroll-padding-top:130px}
+  :root{--rail:132px}
+}
+@media (max-width:860px){
+  .codegrid,.twocol{grid-template-columns:minmax(0,1fr)}
+  .codewrap{border-right:0;border-bottom:1px solid var(--line2)}
+  .dlog li,.tile{min-width:0}
+}
+@media (max-width:760px){
+  :root{--gut:40px}
+  .topbar{padding:0 12px;gap:8px}
+  .fname{display:none}
+  .switch{padding:5px 8px}
+  .tstat .al,.tstat.el,.pid,.sep,.switch span.lbl{display:none}
+  .topbar .chip.wait{display:none}
+  .page{padding:16px 10px 100px 8px}
+  .minimap{margin:-16px -10px 16px -8px}
+  .cell,.mdcell{grid-template-columns:var(--gut) minmax(0,1fr);}
+  .rail{grid-column:2;padding:6px 0 0}
+  .railbtn{display:flex;flex-wrap:wrap;align-items:center;gap:2px 12px;padding:6px 8px;border-color:var(--line)}
+  .railbtn .lat{font-size:15px}
+  .railbtn .chip,.railbtn .mchip{margin:0}
+  .railbtn .tr{margin:0}
+  .num{left:2px;top:44px;width:24px;text-align:center}
+  .ins{display:none}
+  .dot{left:6px}
+  #lineSvg .arc{display:none}
+  .titlebox{grid-column:2;padding:16px}
+  .cout{padding:12px 12px 14px}
+  .scall{display:none}
+  .pipe{grid-template-columns:repeat(7,minmax(0,1fr))}
+  .pipe b{font-size:0}.pipe b::after{content:attr(data-n);font-size:11px}
+  .pipe li span{display:none}
+  .decision{margin-right:4px;padding:14px 12px;box-shadow:5px 5px 0 var(--em-m)}
+  .decision::before{left:16px}
+  .btn{padding:9px 12px}
+  .drawer{width:100%;top:auto;height:72vh;border-left:0;border-top:2px solid var(--ink)}
+  body.drawer-open .page{padding-right:10px}
+  .tile{border-right:0;border-bottom:1px solid var(--line2);width:100%}
+  .nbcell{grid-template-columns:1fr}.nbcell .pr{text-align:left;padding:0 0 3px}
+  .hl{font-size:19px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+</style>
+</head>
+<body>
+
+<!-- icon sprite -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-play" viewBox="0 0 12 12"><path d="M3 1.5v9l7.5-4.5z" fill="currentColor"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 14 14"><rect x="2.5" y="6" width="9" height="6.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4.5 6V4.2a2.5 2.5 0 015 0V6" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 14 14"><path d="M5 2.5L9.5 7 5 11.5" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+  <symbol id="i-grip" viewBox="0 0 14 18"><g fill="currentColor"><circle cx="4" cy="3" r="1.3"/><circle cx="10" cy="3" r="1.3"/><circle cx="4" cy="9" r="1.3"/><circle cx="10" cy="9" r="1.3"/><circle cx="4" cy="15" r="1.3"/><circle cx="10" cy="15" r="1.3"/></g></symbol>
+  <symbol id="i-plus" viewBox="0 0 10 10"><path d="M5 1v8M1 5h8" stroke="currentColor" stroke-width="1.6" fill="none"/></symbol>
+  <symbol id="i-x" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.8" fill="none"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3 8.5l3.2 3.2L13 4.8" stroke="currentColor" stroke-width="2.2" fill="none"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 16 16"><path d="M3.5 1.5h6l3 3v10h-9z M9.5 1.5v3h3 M5.5 8h5 M5.5 10.5h5" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+  <symbol id="i-model" viewBox="0 0 16 16"><rect x="3.5" y="3.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 1v2.5M10 1v2.5M6 12.5V15M10 12.5V15M1 6h2.5M1 10h2.5M12.5 6H15M12.5 10H15" stroke="currentColor" stroke-width="1.5"/></symbol>
+  <symbol id="i-cube" viewBox="0 0 16 16"><path d="M8 1.5l6 3v7l-6 3-6-3v-7z M2 4.5l6 3 6-3 M8 7.5v7" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 16 16"><circle cx="8" cy="4.5" r="2.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 14c0-3 2-5 5-5s5 2 5 5" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 20 20"><path d="M10 2.5l8 14H2z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 8v4M10 14v1" stroke="currentColor" stroke-width="1.8"/></symbol>
+  <symbol id="i-file" viewBox="0 0 16 16"><path d="M3.5 1.5h6l3 3v10h-9z" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+</svg>
+
+<a class="sr" href="#c3">Skip to the pending gate</a>
+
+<header class="topbar">
+  <a class="brand" href="#top" aria-label="Palissy home"><i></i>palissy</a>
+  <span class="sep">/</span>
+  <span class="fname"><svg width="14" height="14" aria-hidden="true"><use href="#i-file"/></svg>codon-usage-vs-expression.palissy</span>
+  <span class="pid">id 603c3237</span>
+  <span class="chip run" id="topStatus"><svg viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="14 6"/></svg>running</span>
+  <span class="chip wait" id="topWait"><svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" transform="rotate(45 6 6)" fill="currentColor"/></svg>waiting for you</span>
+  <span class="spacer"></span>
+  <span class="tstat el" title="Wall-clock time since the question was posed">elapsed <b id="elapsed">4:12</b></span>
+  <span class="tstat sp" title="Spend on this project. All projects: $0.0443"><b>$0.0063</b> <span class="al" style="color:var(--mute)">/ $0.0443 all</span></span>
+  <button class="switch" id="lineBtn" role="switch" aria-checked="false"><span class="tk"></span><span class="lbl">Show lineage</span></button>
+</header>
+
+<main class="page" id="top">
+  <nav class="minimap" aria-label="Notebook cells">
+    <h2>Pipeline</h2>
+    <ol id="mm1">
+      <li><a href="#c1" data-c="c1"><span class="n">1</span><span class="mdot" data-s="done"></span>Literature</a></li>
+      <li><a href="#c2" data-c="c2"><span class="n">2</span><span class="mdot" data-s="done"></span>Hypothesis</a></li>
+      <li><a href="#c3" data-c="c3"><span class="n">3</span><span class="mdot" data-s="waiting"></span>Experiment</a></li>
+      <li><a href="#c4" data-c="c4"><span class="n">4</span><span class="mdot" data-s="pending"></span>Execution</a></li>
+      <li><a href="#c5" data-c="c5"><span class="n">5</span><span class="mdot" data-s="pending"></span>Analysis</a></li>
+      <li><a href="#c6" data-c="c6"><span class="n">6</span><span class="mdot" data-s="pending"></span>Reflection</a></li>
+      <li><a href="#c7" data-c="c7"><span class="n">7</span><span class="mdot" data-s="pending"></span>Notebook</a></li>
+    </ol>
+    <h2>Panels</h2>
+    <ol id="mm2">
+      <li><a href="#c8" data-c="c8"><span class="n">8</span><span class="mdot" data-s="ext"></span>Cost</a></li>
+      <li><a href="#c9" data-c="c9"><span class="n">9</span><span class="mdot" data-s="ext"></span>Strategy</a></li>
+      <li><a href="#c10" data-c="c10"><span class="n">10</span><span class="mdot" data-s="ext"></span>Notebook view</a></li>
+    </ol>
+  </nav>
+
+  <div class="nb" id="nb">
+    <svg id="lineSvg" aria-hidden="true"><defs>
+      <marker id="ah" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0l8 4-8 4z" fill="#047857"/></marker>
+    </defs><g id="lineG"></g></svg>
+
+    <!-- title / markdown cell -->
+    <div class="mdcell">
+      <div class="gut"><span class="num" style="cursor:default">md</span></div>
+      <div class="titlebox">
+        <p class="kicker"><span>Research question</span><span class="chip">opened by the researcher</span></p>
+        <h1>Does codon usage bias correlate with <em>gene expression level</em> in <span style="font-style:italic">E. coli</span>?</h1>
+        <ol class="pipe" id="pipe" aria-label="Pipeline progress">
+          <li data-s="done"><b data-n="1">01</b><span>Literature</span></li>
+          <li data-s="done"><b data-n="2">02</b><span>Hypothesis</span></li>
+          <li data-s="waiting"><b data-n="3">03</b><span>Experiment</span></li>
+          <li data-s="pending"><b data-n="4">04</b><span>Execution</span></li>
+          <li data-s="pending"><b data-n="5">05</b><span>Analysis</span></li>
+          <li data-s="pending"><b data-n="6">06</b><span>Reflection</span></li>
+          <li data-s="pending"><b data-n="7">07</b><span>Notebook</span></li>
+        </ol>
+        <div class="statusline">
+          <span>sandbox backend <b>contree</b></span>
+          <span>image <b>palissy/base/python:3.12-numpy</b></span>
+          <span>3 human gates: hypothesis <b>done</b> · experiment <b id="gateState">waiting</b> · strategy <b>later</b></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CELL 1 Literature -->
+    <section class="cell" id="c1" data-state="done" data-open="false" aria-labelledby="t1">
+      <div class="gut"><button class="num" data-pick="c1" aria-label="Select cell 1 and show its lineage">1</button><button class="ins" aria-label="Insert cell below 1"><svg><use href="#i-plus"/></svg></button><span class="dot"></span></div>
+      <article class="body">
+        <header class="chead">
+          <button class="tog" aria-expanded="false" aria-controls="o1"><svg class="chev"><use href="#i-chev"/></svg><span class="stitle" id="t1">Literature</span><span class="scall">tavily.search() → nano.summarise()</span></button>
+          <span class="slabel">done · 5 sources</span>
+          <button class="runb" aria-label="Re-run literature (costs tokens)" title="Re-run"><svg><use href="#i-play"/></svg></button>
+          <svg class="grip" aria-hidden="true"><use href="#i-grip"/></svg>
+        </header>
+        <div class="cout" id="o1">
+          <p class="kicker">Nano summary</p>
+          <p class="quote sum">“Codon usage bias (CUB) is pervasive in <em>Escherichia coli</em> and is tightly linked to how heavily a gene is expressed. Highly expressed genes favour a small set of optimal codons matched to abundant tRNAs…”</p>
+          <div class="srcrow" aria-label="Sources"><span class="kicker" style="margin:4px 4px 0 0">cited</span>
+            <button class="cite" data-claim="cit1" aria-expanded="false">[1] ScienceDirect</button>
+            <button class="cite" data-claim="cit2" aria-expanded="false">[2] PMC2646356</button>
+            <button class="cite" data-claim="cit3" aria-expanded="false">[3] GenScript</button>
+            <button class="cite" data-claim="cit4" aria-expanded="false">[4] bioRxiv</button>
+            <button class="cite" data-claim="cit5" aria-expanded="false">[5] Frontiers</button>
+          </div>
+          <div class="more">
+            <ol class="srclist">
+              <li><span class="mono">[1]</span><div><div class="t">ScienceDirect Topics — Codon usage bias</div><div class="u">sciencedirect.com/topics/biochemistry-genetics-and-molecular-biology/codon-usage-bias</div></div></li>
+              <li><span class="mono">[2]</span><div><div class="t">PMC2646356</div><div class="u">pmc.ncbi.nlm.nih.gov/articles/PMC2646356</div></div></li>
+              <li><span class="mono">[3]</span><div><div class="t">GenScript — E. coli codon usage</div><div class="u">genscript.com/biology-glossary/17502/e-coli-codon-usage</div></div></li>
+              <li><span class="mono">[4]</span><div><div class="t">bioRxiv 2023.08.31.555696</div><div class="u">biorxiv.org/content/10.1101/2023.08.31.555696v1.full-text</div></div></li>
+              <li><span class="mono">[5]</span><div><div class="t">Frontiers in Microbiology 2024.1414422</div><div class="u">frontiersin.org/journals/microbiology/articles/10.3389/fmicb.2024.1414422/full</div></div></li>
+            </ol>
+          </div>
+        </div>
+        <div class="trace" id="tr1"><h4>Lineage</h4><ol>
+          <li>question posed by the researcher</li>
+          <li><b>tavily.search</b> 37e2bd1a03bb · 5 sources · 5.38 s</li>
+          <li><b>nano.summarise</b> b5ad5a228dae · 934 in / 289 out · $0.00010 · 3.79 s</li></ol></div>
+      </article>
+      <aside class="rail"><button class="railbtn" aria-expanded="false" data-trace="tr1" aria-label="Runtime facts for cell 1, click to show lineage">
+        <span class="lat">5.4 s</span><span class="mchip nano">Nano 30B</span><span class="tk">934 in / 289 out</span><span class="cost">$0.00010</span><span class="tk">+ Tavily</span><span class="tr">lineage ▸</span></button></aside>
+    </section>
+
+    <!-- CELL 2 Hypothesis -->
+    <section class="cell" id="c2" data-state="done" data-open="false" aria-labelledby="t2">
+      <div class="gut"><button class="num" data-pick="c2" aria-label="Select cell 2 and show its lineage">2</button><button class="ins" aria-label="Insert cell below 2"><svg><use href="#i-plus"/></svg></button><span class="dot"></span></div>
+      <article class="body">
+        <header class="chead">
+          <button class="tog" aria-expanded="false" aria-controls="o2"><svg class="chev"><use href="#i-chev"/></svg><span class="stitle" id="t2">Hypothesis</span><span class="scall">ultra.hypothesise(literature, human_facts)</span></button>
+          <span class="slabel">done · approved at gate 1</span>
+          <button class="runb" aria-label="Re-run hypothesis (costs tokens)" title="Re-run"><svg><use href="#i-play"/></svg></button>
+          <svg class="grip" aria-hidden="true"><use href="#i-grip"/></svg>
+        </header>
+        <div class="cout" id="o2">
+          <p class="kicker">Hypothesis · select the underlined sentence to trace it</p>
+          <p class="hl sum"><button class="claim" data-claim="hyp" aria-expanded="false">In E. coli, genes with higher Relative Codon Bias Strength (RCBS) exhibit higher expression levels.</button></p>
+          <dl class="kv">
+            <dt>Prediction</dt><dd>Spearman correlation between RCBS and expression is positive and &gt; 0.5 (p &lt; 0.01) in a simulated gene set with matched tRNA supply.</dd>
+            <dt>Rationale</dt><dd>Codon optimality speeds and stabilises translation, so selection on highly expressed genes should sharpen codon bias <button class="cite" data-claim="cit1" aria-expanded="false">[1]</button><button class="cite" data-claim="cit2" aria-expanded="false">[2]</button><button class="cite" data-claim="cit5" aria-expanded="false">[5]</button>.</dd>
+          </dl>
+          <div class="more">
+            <p class="kicker" style="margin-top:16px">Human decisions at this gate</p>
+            <ol class="dlog" style="margin-top:0">
+              <li><span class="t">gate 1 · a</span><span><b>Inject knowledge</b> — “State the model’s assumptions explicitly.” Ultra regenerated with it.</span></li>
+              <li><span class="t">gate 1 · b</span><span><b>Approve</b> — record <span class="mono">3e965191dae1</span></span></li>
+            </ol>
+          </div>
+        </div>
+        <div class="trace" id="tr2"><h4>Lineage</h4><ol>
+          <li>upstream: cell 1 · Nano summary b5ad5a228dae</li>
+          <li><b>human inject</b> “State the model’s assumptions explicitly.”</li>
+          <li><b>ultra.hypothesise</b> 728224211939 · 1565 in / 2160 out · $0.00553 · 7.12 s</li>
+          <li><b>human approve</b> 3e965191dae1</li></ol></div>
+      </article>
+      <aside class="rail"><button class="railbtn" aria-expanded="false" data-trace="tr2" aria-label="Runtime facts for cell 2, click to show lineage">
+        <span class="lat">7.1 s</span><span class="mchip ultra">Ultra 550B</span><span class="tk">1565 in / 2160 out</span><span class="cost">$0.00553</span><span class="tk">rec 728224211939</span><span class="tr">lineage ▸</span></button></aside>
+    </section>
+
+    <!-- CELL 3 Experiment design (pending gate) -->
+    <section class="cell" id="c3" data-state="waiting" data-open="true" aria-labelledby="t3">
+      <div class="gut"><button class="num" data-pick="c3" aria-label="Select cell 3 and show its lineage">3</button><button class="ins" aria-label="Insert cell below 3"><svg><use href="#i-plus"/></svg></button><span class="dot"></span></div>
+      <article class="body">
+        <header class="chead">
+          <button class="tog" aria-expanded="true" aria-controls="o3"><svg class="chev"><use href="#i-chev"/></svg><span class="stitle" id="t3">Experiment design</span><span class="scall">super.design_experiment(hypothesis, lessons)</span></button>
+          <span class="slabel" id="c3label">waiting for you</span>
+          <button class="runb" id="c3run" aria-disabled="true" aria-label="Run is locked until you approve" title="Locked until Approve"><svg><use href="#i-lock"/></svg></button>
+          <svg class="grip" aria-hidden="true"><use href="#i-grip"/></svg>
+        </header>
+        <div class="cout" id="o3">
+          <div class="codegrid">
+            <div class="codewrap">
+              <div class="codebar"><span>experiment.py · python 3.12 · 24 lines</span><span>proposed by Super, not yet run</span></div>
+              <pre class="code" tabindex="0" aria-label="Proposed Python code"><code id="codeEl"><span class="l"><span class="k">import</span> numpy <span class="k">as</span> np, math</span><span class="l">np.random.seed(<span class="n">42</span>)                      <span class="c"># deterministic</span></span><span class="l"></span><span class="l">N_GENES = <span class="n">200</span></span><span class="l">rcbs = np.random.beta(<span class="n">2</span>, <span class="n">5</span>, N_GENES)    <span class="c"># codon bias strength per gene</span></span><span class="l">trna = np.random.normal(<span class="n">0</span>, <span class="n">0.15</span>, N_GENES)</span><span class="l">expr = <span class="n">0.8</span> * rcbs + trna                <span class="c"># expression = bias + tRNA supply noise</span></span><span class="l"></span><span class="l"><span class="k">def</span> <span class="f">ranks</span>(a):</span><span class="l">    <span class="k">return</span> np.argsort(np.argsort(a)).astype(float)</span><span class="l"></span><span class="l"><span class="k">def</span> <span class="f">spearman</span>(x, y):</span><span class="l">    rx, ry = ranks(x), ranks(y)</span><span class="l">    <span class="k">return</span> np.corrcoef(rx, ry)[<span class="n">0</span>, <span class="n">1</span>]</span><span class="l"></span><span class="l">rho = spearman(rcbs, expr)</span><span class="l">perm = [abs(spearman(rcbs, np.random.permutation(expr))) <span class="k">for</span> _ <span class="k">in</span> range(<span class="n">999</span>)]</span><span class="l">p = (sum(v &gt;= abs(rho) <span class="k">for</span> v <span class="k">in</span> perm) + <span class="n">1</span>) / <span class="n">1000</span></span><span class="l"></span><span class="l">print(<span class="s">f"Observed Spearman rho: {rho:.4f}"</span>)</span><span class="l">print(<span class="s">f"Empirical p-value (two-sided): {p:.4f}"</span>)</span><span class="l">print(<span class="s">"RESULT: supports"</span> <span class="k">if</span> rho &gt; <span class="n">0.5</span> <span class="k">and</span> p &lt; <span class="n">0.01</span> <span class="k">else</span> <span class="s">"RESULT: inconclusive"</span>)</span></code></pre>
+            </div>
+            <div class="willrun">
+              <h3>Will run in ConTree</h3>
+              <p>An isolated VM sandbox. Nothing touches your machine or the network.</p>
+              <dl>
+                <dt>backend</dt><dd>contree</dd>
+                <dt>image</dt><dd>palissy/base/python:3.12-numpy</dd>
+                <dt>timeout</dt><dd>20 s</dd>
+                <dt>network</dt><dd>none</dd>
+                <dt>file I/O</dt><dd>none</dd>
+              </dl>
+              <div class="no"><span class="chip"><svg viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.8"/></svg>no scipy</span><span class="chip"><svg viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.8"/></svg>no network</span></div>
+              <p style="margin:12px 0 0;font-size:12.5px;color:var(--mute)">Uses <span class="mono">math</span> and numpy only, following the lessons carried over from project 504f74a7 (cell 9).</p>
+            </div>
+          </div>
+
+          <!-- THE DECISION CELL -->
+          <div class="decision" id="decision" role="group" aria-labelledby="dgate">
+            <div class="dhead">
+              <span class="gate-tag" id="dgate">Gate 2 of 3 · Experiment</span>
+              <span class="waitmsg" id="waitmsg"><i aria-hidden="true"></i>Waiting for you. Nothing runs until you decide.</span>
+              <span class="donemsg" id="donemsg" hidden><svg aria-hidden="true"><use href="#i-check"/></svg><span id="donetext">Approved</span></span>
+            </div>
+            <p class="dcopy" id="dcopy">Approving sends <b>exactly the code above</b> to an isolated ConTree sandbox (<span class="mono">palissy/base/python:3.12-numpy</span>, 20 s, no network). Reject, modify or inject a fact and the design step runs again; nothing executes in the meantime.</p>
+            <div class="acts" id="acts">
+              <button class="btn primary" data-act="approve"><svg aria-hidden="true"><use href="#i-check"/></svg>Approve</button>
+              <button class="btn" data-act="reject" aria-expanded="false" aria-controls="apanel">Reject</button>
+              <button class="btn" data-act="modify" aria-expanded="false" aria-controls="apanel">Modify</button>
+              <button class="btn" data-act="inject" aria-expanded="false" aria-controls="apanel">Inject knowledge</button>
+              <button class="btn lock" id="lockBtn" aria-disabled="true" title="Unlocks only after Approve"><svg aria-hidden="true"><use href="#i-lock"/></svg>Run · locked until you approve</button>
+            </div>
+            <div class="apanel" id="apanel" hidden>
+              <label for="atext" id="alabel"></label>
+              <p class="hint" id="ahint"></p>
+              <textarea id="atext"></textarea>
+              <div class="row"><button class="btn primary" id="aconfirm"></button><button class="linkbtn" id="acancel">Cancel</button><span class="err" id="aerr" role="alert"></span></div>
+            </div>
+            <div class="regen" id="regen" hidden><svg class="spin" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8" fill="none" stroke="#A7E3CF" stroke-width="3"/><path d="M10 2a8 8 0 018 8" stroke="#047857" stroke-width="3" fill="none"/></svg><span id="regentext">Super is regenerating the design with your input…</span></div>
+            <div class="alts" id="alts"><span class="lab">Cost of this gate’s alternatives</span>
+              <span>Approve: <b>$0</b> now, ConTree run</span>
+              <span>Regenerate on Super: <b>≈ $0.0007</b></span>
+              <span>on Nano: <b>≈ $0.0004</b></span>
+              <span>on Ultra: <b>≈ $0.0039</b> (5.5× Super)</span>
+            </div>
+            <ol class="dlog" id="dlog" aria-label="Decision log for this gate"></ol>
+            <button class="linkbtn" id="undo" hidden style="margin-top:10px">Reset this mockup to “waiting”</button>
+          </div>
+        </div>
+        <div class="trace" id="tr3"><h4>Lineage</h4><ol>
+          <li>upstream: cell 2 hypothesis 728224211939, approved 3e965191dae1</li>
+          <li>upstream: cell 9 lessons from 504f74a7 (math.erf, numpy only, 20 s)</li>
+          <li><b>super.design_experiment</b> 9f5508fbc53d · 258 in / 1714 out · $0.00071 · 10.43 s</li>
+          <li><b>human gate</b> pending</li></ol></div>
+      </article>
+      <aside class="rail"><button class="railbtn" aria-expanded="false" data-trace="tr3" aria-label="Runtime facts for cell 3, click to show lineage">
+        <span class="lat">10.4 s</span><span class="mchip super">Super 120B</span><span class="tk">258 in / 1714 out</span><span class="cost">$0.00071</span><span class="tk">rec 9f5508fbc53d</span><span class="tr">lineage ▸</span></button></aside>
+    </section>
+
+    <!-- CELL 4 Execution -->
+    <section class="cell" id="c4" data-state="pending" data-open="true" aria-labelledby="t4">
+      <div class="gut"><button class="num" data-pick="c4" aria-label="Select cell 4 and show its lineage">4</button><button class="ins" aria-label="Insert cell below 4"><svg><use href="#i-plus"/></svg></button><span class="dot"></span></div>
+      <article class="body">
+        <header class="chead">
+          <button class="tog" aria-expanded="true" aria-controls="o4"><svg class="chev"><use href="#i-chev"/></svg><span class="stitle" id="t4">Execution</span><span class="scall">contree.run(experiment.py)</span></button>
+          <span class="slabel" id="c4label">pending · needs approval</span>
+          <button class="runb" aria-disabled="true" aria-label="Run is locked until cell 3 is approved" title="Locked until Approve"><svg><use href="#i-lock"/></svg></button>
+          <svg class="grip" aria-hidden="true"><use href="#i-grip"/></svg>
+        </header>
+        <div class="cout" id="o4">
+          <p class="exstate"><span>backend <b>contree</b></span><span>image <b>palissy/base/python:3.12-numpy</b></span><span>timeout <b>20 s</b></span></p>
+          <p class="lockrow" id="c4idle"><svg width="14" height="14" aria-hidden="true"><use href="#i-lock"/></svg>Locked. Runs only after you approve the experiment in cell 3. Code is executed in the sandbox, never on the host.</p>
+          <div class="runlive" id="c4live" role="status">
+            <ul><li>✓ restored checkpoint <b>pip install numpy</b></li><li>✓ mounted <b>experiment.py</b> (approved code, unmodified)</li><li>… executing · <b id="c4time">0.0</b> s of 20 s</li></ul>
+            <div class="bar" aria-hidden="true"><i></i></div>
+          </div>
+          <div class="more branches">
+            <h4><span>ConTree branches · sandbox isolation check</span><span>image palissy/base/python:3.12-numpy</span></h4>
+            <svg viewBox="0 0 640 138" role="img" aria-labelledby="brT brD">
+              <title id="brT">ConTree branch diagram</title>
+              <desc id="brD">main branch goes from base image to pip install numpy to experiment run. A variant branch forks at the pip install numpy checkpoint, writes a file, and is rolled back. The file is absent on main.</desc>
+              <line x1="40" y1="34" x2="560" y2="34" stroke="#1C2024" stroke-width="2.5"/>
+              <path d="M290 34 C 310 34, 310 100, 340 100 L 430 100" fill="none" stroke="#0F9F78" stroke-width="2.5"/>
+              <circle cx="40" cy="34" r="7" fill="#1C2024"/>
+              <circle cx="290" cy="34" r="7" fill="#1C2024"/>
+              <circle cx="540" cy="34" r="7" fill="#fff" stroke="#1C2024" stroke-width="2.5" stroke-dasharray="3 2.5"/>
+              <circle cx="430" cy="100" r="7" fill="#fff" stroke="#0F9F78" stroke-width="2.5"/>
+              <path d="M466 92l16 16M482 92l-16 16" stroke="#B42318" stroke-width="3"/>
+              <text x="14" y="14" font-family="JetBrains Mono,monospace" font-size="12" font-weight="600" fill="#1C2024">main</text>
+              <text x="40" y="60" font-family="Hanken Grotesk,sans-serif" font-size="12.5" fill="#334155" text-anchor="middle">base image</text>
+              <text x="290" y="60" font-family="Hanken Grotesk,sans-serif" font-size="12.5" fill="#334155" text-anchor="middle">pip install numpy</text>
+              <text x="540" y="60" font-family="Hanken Grotesk,sans-serif" font-size="12.5" fill="#334155" text-anchor="middle">experiment run (pending)</text>
+              <text x="340" y="124" font-family="JetBrains Mono,monospace" font-size="12" font-weight="600" fill="#0B6B50">variant</text>
+              <text x="430" y="124" font-family="Hanken Grotesk,sans-serif" font-size="12.5" fill="#334155" text-anchor="middle">wrote a file</text>
+              <text x="490" y="104" font-family="JetBrains Mono,monospace" font-size="12" font-weight="600" fill="#B42318">rolled back</text>
+            </svg>
+            <p class="cap">Forked at the <span class="mono">pip install numpy</span> checkpoint, wrote a file, then rolled back: the file is absent on <span class="mono">main</span>. Failed variants never contaminate the kept run.</p>
+          </div>
+        </div>
+        <div class="trace" id="tr4"><h4>Lineage</h4><ol>
+          <li>upstream: cell 3 experiment 9f5508fbc53d</li>
+          <li><b>human approve</b> required (gate 2)</li>
+          <li><b>contree.run</b> pending</li></ol></div>
+      </article>
+      <aside class="rail"><button class="railbtn" aria-expanded="false" data-trace="tr4" aria-label="Runtime facts for cell 4, click to show lineage">
+        <span class="lat" id="c4lat">—</span><span class="mchip cts">ConTree</span><span class="tk">CPU · mem · IO</span><span class="cost">$ not yet billed</span><span class="tr">lineage ▸</span></button></aside>
+    </section>
+
+    <!-- CELL 5 -->
+    <section class="cell" id="c5" data-state="pending" data-open="false" aria-labelledby="t5">
+      <div class="gut"><button class="num" data-pick="c5" aria-label="Select cell 5 and show its lineage">5</button><button class="ins" aria-label="Insert cell below 5"><svg><use href="#i-plus"/></svg></button><span class="dot"></span></div>
+      <article class="body">
+        <header class="chead">
+          <button class="tog" aria-expanded="false" aria-controls="o5"><svg class="chev"><use href="#i-chev"/></svg><span class="stitle" id="t5">Analysis</span><span class="scall">super.analyse(output, prediction)</span></button>
+          <span class="slabel">pending</span>
+          <button class="runb" aria-disabled="true" aria-label="Locked" title="Locked"><svg><use href="#i-lock"/></svg></button>
+          <svg class="grip" aria-hidden="true"><use href="#i-grip"/></svg>
+        </header>
+        <div class="cout" id="o5"><p class="sum" style="margin:0;color:var(--ink2)">Super reads the recorded output and states whether rho &gt; 0.5 and p &lt; 0.01, listing every model assumption.</p><div class="more"></div></div>
+        <div class="trace" id="tr5"><h4>Lineage</h4><ol><li>upstream: cell 4 run output, cell 3 code</li><li><b>super.analyse</b> pending</li></ol></div>
+      </article>
+      <aside class="rail"><button class="railbtn" aria-expanded="false" data-trace="tr5" aria-label="Runtime facts for cell 5"><span class="lat">—</span><span class="mchip super">Super</span><span class="tk">code + analysis</span><span class="tr">lineage ▸</span></button></aside>
+    </section>
+
+    <!-- CELL 6 -->
+    <section class="cell" id="c6" data-state="pending" data-open="false" aria-labelledby="t6">
+      <div class="gut"><button class="num" data-pick="c6" aria-label="Select cell 6 and show its lineage">6</button><button class="ins" aria-label="Insert cell below 6"><svg><use href="#i-plus"/></svg></button><span class="dot"></span></div>
+      <article class="body">
+        <header class="chead">
+          <button class="tog" aria-expanded="false" aria-controls="o6"><svg class="chev"><use href="#i-chev"/></svg><span class="stitle" id="t6">Reflection</span><span class="scall">ultra.reflect(cycle)</span></button>
+          <span class="slabel">pending</span>
+          <button class="runb" aria-disabled="true" aria-label="Locked" title="Locked"><svg><use href="#i-lock"/></svg></button>
+          <svg class="grip" aria-hidden="true"><use href="#i-grip"/></svg>
+        </header>
+        <div class="cout" id="o6"><p class="sum" style="margin:0;color:var(--ink2)">Ultra compares outcome with prediction and proposes lessons. You decide at gate 3 (Strategy update); approved lessons shape the next run.</p><div class="more"></div></div>
+        <div class="trace" id="tr6"><h4>Lineage</h4><ol><li>upstream: cell 5 analysis, cell 2 prediction, cell 9 current lessons</li><li><b>ultra.reflect</b> pending</li><li><b>human gate 3</b> pending</li></ol></div>
+      </article>
+      <aside class="rail"><button class="railbtn" aria-expanded="false" data-trace="tr6" aria-label="Runtime facts for cell 6"><span class="lat">—</span><span class="mchip ultra">Ultra</span><span class="tk">deep reasoning</span><span class="tr">lineage ▸</span></button></aside>
+    </section>
+
+    <!-- CELL 7 -->
+    <section class="cell" id="c7" data-state="pending" data-open="false" aria-labelledby="t7">
+      <div class="gut"><button class="num" data-pick="c7" aria-label="Select cell 7 and show its lineage">7</button><button class="ins" aria-label="Insert cell below 7"><svg><use href="#i-plus"/></svg></button><span class="dot"></span></div>
+      <article class="body">
+        <header class="chead">
+          <button class="tog" aria-expanded="false" aria-controls="o7"><svg class="chev"><use href="#i-chev"/></svg><span class="stitle" id="t7">Notebook</span><span class="scall">export(.ipynb)</span></button>
+          <span class="slabel">pending</span>
+          <button class="runb" aria-disabled="true" aria-label="Locked" title="Locked"><svg><use href="#i-lock"/></svg></button>
+          <svg class="grip" aria-hidden="true"><use href="#i-grip"/></svg>
+        </header>
+        <div class="cout" id="o7"><p class="sum" style="margin:0;color:var(--ink2)">Assembles code, recorded output, verdict and caveats into a reproducible .ipynb, labelled “Tested on simulated data”. See cell 10 for a finished example.</p><div class="more"></div></div>
+        <div class="trace" id="tr7"><h4>Lineage</h4><ol><li>upstream: cells 4, 5, 6</li><li><b>notebook.export</b> pending</li></ol></div>
+      </article>
+      <aside class="rail"><button class="railbtn" aria-expanded="false" data-trace="tr7" aria-label="Runtime facts for cell 7"><span class="lat">—</span><span class="tk">no model call</span><span class="tr">lineage ▸</span></button></aside>
+    </section>
+
+    <!-- CELL 8 COST -->
+    <section class="cell" id="c8" data-state="ext" data-open="true" aria-labelledby="t8">
+      <div class="gut"><button class="num" data-pick="c8" aria-label="Select cell 8 and show its lineage">8</button><button class="ins" aria-label="Insert cell below 8"><svg><use href="#i-plus"/></svg></button><span class="dot"></span></div>
+      <article class="body">
+        <header class="chead">
+          <button class="tog" aria-expanded="true" aria-controls="o8"><svg class="chev"><use href="#i-chev"/></svg><span class="stitle" id="t8">Cost</span><span class="scall">ledger.summary(project)</span></button>
+          <span class="slabel">live ledger</span>
+          <button class="runb" aria-label="Refresh ledger" title="Refresh"><svg><use href="#i-play"/></svg></button>
+          <svg class="grip" aria-hidden="true"><use href="#i-grip"/></svg>
+        </header>
+        <div class="cout" id="o8">
+          <div class="tiles">
+            <div class="tile"><div class="sm">This project · 603c3237</div><div class="big">$0.0063</div><div class="sm">3 model calls so far</div></div>
+            <div class="tile"><div class="sm">All projects</div><div class="big">$0.0443</div><div class="sm">logged spend</div></div>
+            <div class="tile"><div class="sm">Ultra share of spend</div><div class="big">≈ 87%</div><div class="sm">but 8 of 20 calls (40%)</div></div>
+          </div>
+          <div class="twocol" style="margin-top:6px">
+            <div>
+              <table class="tbl"><caption>By model · all projects</caption>
+                <thead><tr><th>Model</th><th class="m">Calls</th><th class="m">Spend</th><th>Share</th></tr></thead>
+                <tbody>
+                  <tr><td><span class="mchip ultra">Ultra</span></td><td class="m">8</td><td class="m">$0.03853</td><td><div class="bar2 u" role="img" aria-label="Ultra about 87 percent of spend"><i style="width:87%"></i></div></td></tr>
+                  <tr><td><span class="mchip super">Super</span></td><td class="m">8</td><td class="m">$0.00537</td><td><div class="bar2 s" role="img" aria-label="Super about 12 percent of spend"><i style="width:12%"></i></div></td></tr>
+                  <tr><td><span class="mchip nano">Nano</span></td><td class="m">4</td><td class="m">$0.00043</td><td><div class="bar2 n" role="img" aria-label="Nano about 1 percent of spend"><i style="width:1.5%"></i></div></td></tr>
+                </tbody></table>
+              <table class="tbl"><caption>Why each model was routed there</caption>
+                <tbody>
+                  <tr><td><span class="mchip ultra">Ultra</span></td><td class="why">Deep reasoning: <b>hypothesis</b> and <b>reflection</b>. Worth the price only where a weak answer wastes a whole cycle.</td></tr>
+                  <tr><td><span class="mchip super">Super</span></td><td class="why">Code generation and analysis: <b>experiment design</b>, code repair, analysis.</td></tr>
+                  <tr><td><span class="mchip nano">Nano</span></td><td class="why">Fast summarising: <b>literature summary</b>.</td></tr>
+                </tbody></table>
+            </div>
+            <div>
+              <table class="tbl"><caption>By stage · this project</caption>
+                <thead><tr><th>Stage</th><th>Model</th><th class="m">Spend</th></tr></thead>
+                <tbody>
+                  <tr><td>1 Literature</td><td>Nano</td><td class="m">$0.00010</td></tr>
+                  <tr><td>2 Hypothesis</td><td>Ultra</td><td class="m">$0.00553</td></tr>
+                  <tr><td>3 Experiment design</td><td>Super</td><td class="m">$0.00071</td></tr>
+                  <tr><td>4 to 7</td><td style="color:var(--mute)">pending</td><td class="m" style="color:var(--mute)">—</td></tr>
+                  <tr><td><b>Total</b></td><td></td><td class="m"><b>$0.0063</b></td></tr>
+                </tbody></table>
+              <p class="note"><b style="color:var(--ink)">Quality per dollar.</b> Ultra is kept for the two stages where depth changes the science; Super and Nano handle the rest for under a cent. Regenerating the pending design on Ultra instead of Super would cost about 5.5× more.</p>
+            </div>
+          </div>
+          <p class="note">List prices, USD per 1M tokens in / out: Nano 0.05 / 0.20 · Super 0.08 / 0.40 · Ultra 0.50 / 2.20. Spend is computed from logged token counts, not billed amounts.</p>
+        </div>
+        <div class="trace" id="tr8"><h4>Lineage</h4><ol><li>reads model-call records from cells 1, 2, 3</li><li>sums tokens × list price per stage</li></ol></div>
+      </article>
+      <aside class="rail"><button class="railbtn" aria-expanded="false" data-trace="tr8" aria-label="Cost summary facts, click to show lineage"><span class="lat">$0.0063</span><span class="tk">project total</span><span class="tk">$0.0443 all</span><span class="tr">lineage ▸</span></button></aside>
+    </section>
+
+    <!-- CELL 9 STRATEGY -->
+    <section class="cell" id="c9" data-state="ext" data-open="true" aria-labelledby="t9">
+      <div class="gut"><button class="num" data-pick="c9" aria-label="Select cell 9 and show its lineage">9</button><button class="ins" aria-label="Insert cell below 9"><svg><use href="#i-plus"/></svg></button><span class="dot"></span></div>
+      <article class="body">
+        <header class="chead">
+          <button class="tog" aria-expanded="true" aria-controls="o9"><svg class="chev"><use href="#i-chev"/></svg><span class="stitle" id="t9">Strategy</span><span class="scall">lessons.diff(504f74a7 → next run)</span></button>
+          <span class="slabel">from project 504f74a7</span>
+          <button class="runb" aria-label="Refresh" title="Refresh"><svg><use href="#i-play"/></svg></button>
+          <svg class="grip" aria-hidden="true"><use href="#i-grip"/></svg>
+        </header>
+        <div class="cout" id="o9">
+          <p style="margin:0 0 12px;color:var(--ink2);max-width:70ch">Project <span class="mono">504f74a7</span> asked this same question and <span class="chip fail" style="vertical-align:1px"><svg viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.8"/></svg>failed</span>: the script crashed with <span class="mono" style="font-size:13px">AttributeError: module 'numpy' has no attribute 'erf'</span>, and the repair attempt repeated the error. Its reflection rewrote the lessons below. Two lessons before, four after.</p>
+          <div class="diff" role="table" aria-label="Lessons diff: before to after">
+            <div class="dh">@@ lessons · before 2 → after 4 · kept 1 · added 3 · removed 1 @@</div>
+            <div class="dl keep" role="row"><span class="g" aria-hidden="true">·</span><span class="w">kept</span><span class="tx">Keep experiments under 20 seconds; use numpy only.</span></div>
+            <div class="dl add" role="row"><span class="g" aria-hidden="true">+</span><span class="w">added</span><span class="tx">Numpy has no erf; use math.erf and never import scipy.<span class="why">Applied in cell 3: the code imports <span class="mono">math</span> and avoids scipy.</span></span></div>
+            <div class="dl add" role="row"><span class="g" aria-hidden="true">+</span><span class="w">added</span><span class="tx">Explicitly list all model assumptions in the hypothesis and analysis.<span class="why">Came in through your inject at gate 1.</span></span></div>
+            <div class="dl add" role="row"><span class="g" aria-hidden="true">+</span><span class="w">added</span><span class="tx">Validate simulation dynamics against an analytical equilibrium before interpreting.</span></div>
+            <div class="dl del" role="row"><span class="g" aria-hidden="true">−</span><span class="w">removed</span><span class="tx"><span class="st">Run simulations for enough generations to reach 10^5–10^6 generations</span><span class="why">Removed because it contradicts the 20 s runtime limit.</span></span></div>
+          </div>
+          <p class="note">These lessons are fed into the next run’s design and hypothesis steps. This run’s own reflection (cell 6) will propose further changes, and you approve them at gate 3 before they count.</p>
+        </div>
+        <div class="trace" id="tr9"><h4>Lineage</h4><ol><li>external: reflection of project 504f74a7 (verdict failed)</li><li>feeds cells 3 and 6 of this run</li></ol></div>
+      </article>
+      <aside class="rail"><button class="railbtn" aria-expanded="false" data-trace="tr9" aria-label="Strategy facts, click to show lineage"><span class="lat">+3 −1</span><span class="mchip ultra">Ultra</span><span class="tk">reflection output</span><span class="tr">lineage ▸</span></button></aside>
+    </section>
+
+    <!-- CELL 10 NOTEBOOK VIEW -->
+    <section class="cell" id="c10" data-state="ext" data-open="true" aria-labelledby="t10">
+      <div class="gut"><button class="num" data-pick="c10" aria-label="Select cell 10 and show its lineage">10</button><button class="ins" aria-label="Insert cell below 10"><svg><use href="#i-plus"/></svg></button><span class="dot"></span></div>
+      <article class="body">
+        <header class="chead">
+          <button class="tog" aria-expanded="true" aria-controls="o10"><svg class="chev"><use href="#i-chev"/></svg><span class="stitle" id="t10">Notebook viewer</span><span class="scall">open(.ipynb)</span></button>
+          <span class="slabel">preview</span>
+          <button class="runb" aria-label="Open notebook" title="Open"><svg><use href="#i-play"/></svg></button>
+          <svg class="grip" aria-hidden="true"><use href="#i-grip"/></svg>
+        </header>
+        <div class="cout" id="o10">
+          <div class="tabs" role="tablist" aria-label="Notebooks">
+            <button class="tab" role="tab" id="tab-a" aria-selected="true" aria-controls="pan-a">656c3c0d · completed</button>
+            <button class="tab" role="tab" id="tab-b" aria-selected="false" aria-controls="pan-b" tabindex="-1">603c3237 · this run</button>
+          </div>
+          <div id="pan-a" role="tabpanel" aria-labelledby="tab-a">
+            <div class="simban"><svg aria-hidden="true"><use href="#i-warn"/></svg><div>Tested on simulated data, within the model’s stated assumptions<span>No real genomes were measured. The verdict applies to the simulation only.</span></div></div>
+            <div class="nbcell"><span class="pr">md</span><div class="bx md"><h3>Does GC content correlate with mutation rate in bacterial genomes?</h3></div></div>
+            <div class="nbcell"><span class="pr">In [1]</span><div class="bx"><div class="hidden-code"><span>code cell · hidden in this preview, open the .ipynb for the exact code</span><span class="chip">python 3.12</span></div></div></div>
+            <div class="nbcell"><span class="pr">Out [1]</span><div class="bx"><pre class="out">Starting GC fraction : mean ΔGC per generation (first 1k gens)
+0.7: 0.000e+00
+0.5: 0.000e+00
+0.3: 0.000e+00
+R² = 0.00000
+RESULT: inconclusive</pre></div></div>
+            <div class="nbcell"><span class="pr">verdict</span><div class="bx"><div class="verdictrow"><span class="chip inc"><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M6 1.4a4.6 4.6 0 010 9.2z" fill="currentColor"/></svg>inconclusive</span><button class="claim" data-claim="verdict" aria-expanded="false">Spearman rho &gt; 0.5 supports the hypothesis</button><span style="color:var(--mute);font-size:13px">(claim from a finished run of cell 3’s experiment)</span></div></div></div>
+            <div class="nbcell"><span class="pr">caveats</span><div class="bx"><div class="caveat"><b>Caveats</b>Simulation assumes independent sites, no selection, constant mutation bias.</div></div></div>
+          </div>
+          <div id="pan-b" role="tabpanel" aria-labelledby="tab-b" hidden>
+            <div class="simban"><svg aria-hidden="true"><use href="#i-warn"/></svg><div>Tested on simulated data, within the model’s stated assumptions<span>This label will be stamped on the notebook because cell 3 is a simulation (200 synthetic genes).</span></div></div>
+            <div class="nbcell"><span class="pr">md</span><div class="bx md"><h3>Does codon usage bias correlate with gene expression level in E. coli?</h3></div></div>
+            <div class="nbcell"><span class="pr">In [1]</span><div class="bx"><div class="hidden-code"><span>code cell · the exact code approved at gate 2 (cell 3), 24 lines</span><span class="chip wait">awaiting approval</span></div></div></div>
+            <div class="nbcell"><span class="pr">Out [1]</span><div class="bx"><pre class="out" style="color:var(--mute)">will be assembled here after cell 4 runs in ConTree</pre></div></div>
+            <div class="nbcell"><span class="pr">verdict</span><div class="bx"><div class="verdictrow"><span class="chip"><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2"/></svg>pending</span><span style="color:var(--ink2)">Supported, inconclusive or failed, with each claim traceable to its run.</span></div></div></div>
+          </div>
+        </div>
+        <div class="trace" id="tr10"><h4>Lineage</h4><ol><li>external: completed project 656c3c0d</li><li>the “this run” tab fills from cells 3, 4, 5, 6</li></ol></div>
+      </article>
+      <aside class="rail"><button class="railbtn" aria-expanded="false" data-trace="tr10" aria-label="Notebook facts, click to show lineage"><span class="lat">.ipynb</span><span class="tk">simulated data</span><span class="tk">656c3c0d</span><span class="tr">lineage ▸</span></button></aside>
+    </section>
+
+    <p class="foot">Palissy · a research collaborator, not a black-box scientist. Every claim above is traceable. Nothing runs until you decide.</p>
+  </div>
+</main>
+
+<aside class="drawer" id="drawer" role="complementary" aria-label="Lineage of selected claim" hidden>
+  <div class="dtop"><h2>Lineage · source → model → run → decision</h2><button class="xbtn" id="dclose" aria-label="Close lineage"><svg><use href="#i-x"/></svg></button></div>
+  <div id="dbody"></div>
+</aside>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function(){
+  const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+  const body=document.body;
+
+  /* ---------- status dots ---------- */
+  const DOT={
+    done:'<svg viewBox="0 0 20 20" aria-label="done" role="img"><circle cx="10" cy="10" r="9" fill="#047857"/><path d="M5.6 10.4l3 3 5.8-6.4" stroke="#fff" stroke-width="2.2" fill="none"/></svg>',
+    running:'<svg viewBox="0 0 20 20" aria-label="running" role="img"><circle cx="10" cy="10" r="7.5" fill="none" stroke="#CDEFE3" stroke-width="3"/><path class="spin" d="M10 2.5a7.5 7.5 0 017.5 7.5" stroke="#047857" stroke-width="3" fill="none"/></svg>',
+    waiting:'<svg viewBox="0 0 20 20" aria-label="waiting for human" role="img"><rect x="4" y="4" width="12" height="12" transform="rotate(45 10 10)" fill="#B45309"/><path d="M10 6.6v4.2M10 12.6v1" stroke="#fff" stroke-width="2"/></svg>',
+    pending:'<svg viewBox="0 0 20 20" aria-label="pending" role="img"><circle cx="10" cy="10" r="7.5" fill="#fff" stroke="#7C8696" stroke-width="1.8" stroke-dasharray="3 3"/></svg>',
+    ext:'<svg viewBox="0 0 20 20" aria-label="panel" role="img"><circle cx="10" cy="10" r="7" fill="#fff" stroke="#0F9F78" stroke-width="2"/><circle cx="10" cy="10" r="2.6" fill="#0F9F78"/></svg>'
+  };
+  function setState(id,s,label){
+    const c=document.getElementById(id); if(!c)return;
+    c.dataset.state=s; $('.dot',c).innerHTML=DOT[s];
+    if(label){const l=$('.slabel',c); if(l) l.textContent=label;}
+    const m=$(`.minimap a[data-c="${id}"] .mdot`); if(m) m.dataset.s=s;
+    const n=parseInt(id.slice(1)); const p=$$('#pipe li')[n-1]; if(p&&n<=7) p.dataset.s=s;
+  }
+  $$('.cell').forEach(c=>setState(c.id,c.dataset.state));
+
+  /* ---------- open/close cells ---------- */
+  $$('.tog').forEach(b=>b.addEventListener('click',()=>{
+    const c=b.closest('.cell'); const open=c.dataset.open!=='true';
+    c.dataset.open=open; b.setAttribute('aria-expanded',open); draw();
+  }));
+  /* rail -> trace */
+  $$('.railbtn').forEach(b=>b.addEventListener('click',()=>{
+    const t=document.getElementById(b.dataset.trace); const on=!t.classList.contains('on');
+    t.classList.toggle('on',on); b.setAttribute('aria-expanded',on);
+    const tr=$('.tr',b); if(tr) tr.textContent=on?'lineage ▾':'lineage ▸'; draw();
+  }));
+
+  /* ---------- dependency graph ---------- */
+  const DEPS={c1:[],c2:['c1'],c3:['c2','c9'],c4:['c3'],c5:['c4','c3'],c6:['c5','c2','c9'],c7:['c4','c5','c6'],c8:['c1','c2','c3'],c9:[],c10:[]};
+  const closure=(id,seen=new Set())=>{ (DEPS[id]||[]).forEach(d=>{ if(!seen.has(d)){seen.add(d);closure(d,seen);} }); return seen; };
+  let selected=null; // {origin, extra:[], key}
+
+  function select(origin,extra){
+    selected={origin,extra:extra||[]};
+    const up=closure(origin); const set=new Set([...up]);
+    body.classList.add('sel');
+    $$('.cell').forEach(c=>{
+      c.classList.toggle('up',set.has(c.id));
+      c.classList.toggle('picked',c.id===origin||selected.extra.includes(c.id));
+    });
+    $$('.minimap a').forEach(a=>a.classList.toggle('up',set.has(a.dataset.c)||a.dataset.c===origin));
+    draw();
+  }
+  function clearSel(){
+    selected=null; body.classList.remove('sel');
+    $$('.cell').forEach(c=>c.classList.remove('up','picked'));
+    $$('.minimap a').forEach(a=>a.classList.remove('up'));
+    $$('[data-claim][aria-expanded="true"]').forEach(e=>e.setAttribute('aria-expanded','false'));
+    $$('.num[aria-pressed]').forEach(n=>n.removeAttribute('aria-pressed'));
+    closeDrawer(); draw();
+  }
+
+  const svg=$('#lineSvg'), G=$('#lineG'), nb=$('#nb');
+  function dotPos(id){
+    const d=$('.dot',document.getElementById(id)); const r=d.getBoundingClientRect(), b=nb.getBoundingClientRect();
+    return {x:r.left-b.left+r.width/2, y:r.top-b.top+r.height/2};
+  }
+  function draw(){
+    const ids=$$('.cell').map(c=>c.id); const P={}; ids.forEach(i=>P[i]=dotPos(i));
+    const narrow=window.innerWidth<=760;
+    let h='';
+    // spine
+    for(let i=0;i<ids.length-1;i++){
+      const a=P[ids[i]],b=P[ids[i+1]]; const st=document.getElementById(ids[i+1]).dataset.state;
+      const dash=(st==='pending'||st==='ext')?' dash':'';
+      h+=`<line class="spine${dash}" x1="${a.x}" y1="${a.y+14}" x2="${b.x}" y2="${b.y-14}"/>`;
+    }
+    if(!narrow){
+      const up=selected?new Set([...closure(selected.origin),selected.origin]):null;
+      ids.forEach(to=>{
+        (DEPS[to]||[]).forEach(from=>{
+          const a=P[from],b=P[to]; const dist=Math.abs(ids.indexOf(to)-ids.indexOf(from));
+          const hot=up&&up.has(to)&&up.has(from);
+          const bulge=Math.min(46,12+dist*8); const x=a.x-13, x2=b.x-13;
+          const y1=a.y, y2=b.y;
+          h+=`<path class="arc${hot?' hot':''}" d="M${a.x-10} ${y1} C ${x-bulge} ${y1}, ${x2-bulge} ${y2}, ${b.x-10} ${y2}" ${hot?'marker-end="url(#ah)"':''}/>`;
+        });
+      });
+    }
+    G.innerHTML=h;
+  }
+  new ResizeObserver(draw).observe(nb);
+  window.addEventListener('resize',draw);
+  if(document.fonts&&document.fonts.ready) document.fonts.ready.then(draw);
+
+  $('#lineBtn').addEventListener('click',e=>{
+    const on=e.currentTarget.getAttribute('aria-checked')!=='true';
+    e.currentTarget.setAttribute('aria-checked',on); body.classList.toggle('lineage',on);
+    $('.lbl',e.currentTarget).textContent=on?'Lineage on':'Show lineage'; draw();
+  });
+  $$('.num[data-pick]').forEach(n=>n.addEventListener('click',()=>{
+    const id=n.dataset.pick; if(selected&&selected.origin===id&&!selected.key){clearSel();return;}
+    clearSel(); select(id); n.setAttribute('aria-pressed','true');
+    showToast('Lineage of cell '+id.slice(1)+': upstream cells highlighted. Esc to clear.');
+  }));
+
+  /* ---------- claims + drawer ---------- */
+  const SRC={1:['ScienceDirect Topics — Codon usage bias','sciencedirect.com/topics/biochemistry-genetics-and-molecular-biology/codon-usage-bias'],
+    2:['PMC2646356','pmc.ncbi.nlm.nih.gov/articles/PMC2646356'],
+    3:['GenScript — E. coli codon usage','genscript.com/biology-glossary/17502/e-coli-codon-usage'],
+    4:['bioRxiv 2023.08.31.555696','biorxiv.org/content/10.1101/2023.08.31.555696v1.full-text'],
+    5:['Frontiers in Microbiology 2024.1414422','frontiersin.org/journals/microbiology/articles/10.3389/fmicb.2024.1414422/full']};
+  const N={
+    tavily:{k:'source',ic:'doc',t:'Tavily search',id:'37e2bd1a03bb',m:[['returned','5 sources'],['latency','5.38 s']]},
+    nano:{k:'model',ic:'model',t:'Nemotron-3 Nano 30B-A3B · literature summary',id:'b5ad5a228dae',m:[['tokens','934 in / 289 out'],['cost','$0.00010'],['latency','3.79 s']]},
+    ultra:{k:'model',ic:'model',t:'Nemotron-3 Ultra 550B-A55B · hypothesis',id:'728224211939',m:[['tokens','1565 in / 2160 out'],['cost','$0.00553'],['latency','7.12 s']]},
+    inject:{k:'human',ic:'hand',t:'Human · Inject knowledge',id:'gate 1',m:[['text','“State the model’s assumptions explicitly.” Step regenerated.']]},
+    ap1:{k:'human',ic:'hand',t:'Human · Approve hypothesis',id:'3e965191dae1',m:[]},
+    sup:{k:'model',ic:'model',t:'Nemotron-3 Super 120B-A12B · experiment design',id:'9f5508fbc53d',m:[['tokens','258 in / 1714 out'],['cost','$0.00071'],['latency','10.43 s']]},
+    ap2:{k:'human',ic:'hand',t:'Human · Approve experiment',id:'763d8f3af247',m:[]},
+    run:{k:'run',ic:'cube',t:'ConTree sandbox run',id:'644fa51b1b1b',m:[['exit','0'],['latency','6.13 s'],['output','rho = 0.8922, p = 0.0010']]},
+    ana:{k:'model',ic:'model',t:'Nemotron-3 Super · analysis',id:'35952649090a',m:[]},
+    refl:{k:'model',ic:'model',t:'Nemotron-3 Ultra · reflection',id:'87c602b0bff2',m:[]}
+  };
+  const srcNode=n=>({k:'source',ic:'doc',t:SRC[n][0],id:'['+n+']',m:[['url',SRC[n][1]]]});
+  const CLAIMS={
+    hyp:{origin:'c2',text:'In E. coli, genes with higher Relative Codon Bias Strength (RCBS) exhibit higher expression levels.',
+      note:'Derived from five sources, one summary, one regeneration with your injected fact, and your approval.',
+      chain:[N.tavily,N.nano,N.ultra,N.inject,N.ap1],tot:'$0.00563 in model calls (Nano + Ultra)'},
+    verdict:{origin:'c5',extra:['c10'],text:'Spearman rho > 0.5 supports the hypothesis',
+      note:'Reference chain from a finished run of this question. Steps 1 to 5 are identical to this run; steps 6 to 10 fill in as this run proceeds.',
+      chain:[N.tavily,N.nano,N.ultra,N.inject,N.ap1,N.sup,N.ap2,N.run,N.ana,N.refl],tot:'$0.00634 in known model calls; analysis and reflection costs not shown here'}
+  };
+  [1,2,3,4,5].forEach(n=>CLAIMS['cit'+n]={origin:'c1',text:'['+n+'] '+SRC[n][0],
+    note:'A retrieved source. It enters the hypothesis only through the Nano summary and Ultra’s rationale.',
+    chain:[srcNode(n),N.tavily,N.nano,{...N.ultra,t:'Nemotron-3 Ultra · cites this source in its rationale'}],
+    tot:'$0.00010 to summarise; Ultra cost shared with the hypothesis'});
+  const IC=k=>`<svg aria-hidden="true"><use href="#i-${k}"/></svg>`;
+  const KL={source:'Source',model:'Model call',run:'Sandbox run',human:'Human decision'};
+  let openBtn=null;
+  function openClaim(key,btn){
+    const c=CLAIMS[key];
+    $$('[data-claim][aria-expanded="true"]').forEach(e=>e.setAttribute('aria-expanded','false'));
+    $$(`[data-claim="${key}"]`).forEach(e=>e.setAttribute('aria-expanded','true'));
+    $$('.num[aria-pressed]').forEach(n=>n.removeAttribute('aria-pressed'));
+    openBtn=btn;
+    let h=`<p class="ctext">${c.text}</p><p class="cnote">${c.note}</p><ol class="chain">`;
+    c.chain.forEach(n=>{
+      h+=`<li class="nd" data-k="${n.k}"><span class="ic">${IC(n.ic)}</span><div class="k">${KL[n.k]}</div><div class="tt">${n.t}</div><div class="id">${n.id}</div>${n.m.length?'<dl>'+n.m.map(x=>`<dt>${x[0]}</dt><dd>${x[1]}</dd>`).join('')+'</dl>':''}</li>`;
+    });
+    h+=`<li class="nd claimnd"><span class="ic">${IC('check')}</span><div class="k">Claim</div><div class="tt">${c.text}</div></li></ol><div class="tot">${c.tot}</div>`;
+    $('#dbody').innerHTML=h;
+    $('#drawer').hidden=false; body.classList.add('drawer-open');
+    selected=null; select(c.origin,c.extra); selected.key=key; draw();
+    requestAnimationFrame(draw);
+  }
+  function closeDrawer(){ $('#drawer').hidden=true; body.classList.remove('drawer-open'); }
+  $$('[data-claim]').forEach(b=>b.addEventListener('click',()=>{
+    const k=b.dataset.claim; if(b.getAttribute('aria-expanded')==='true'){clearSel();return;}
+    openClaim(k,b); setTimeout(draw,50);
+  }));
+  $('#dclose').addEventListener('click',()=>{clearSel(); if(openBtn) openBtn.focus();});
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&(selected||!$('#drawer').hidden)){clearSel(); if(openBtn) openBtn.focus();} });
+
+  /* ---------- toast ---------- */
+  let tt; function showToast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,3200);}
+
+  /* ---------- gate ---------- */
+  const CODE=()=>$$('#codeEl .l').map(l=>l.textContent).join('\n');
+  let mode=null;
+  const cfg={
+    reject:{label:'Why are you rejecting this design?',hint:'A reason is required. Super regenerates the design with it. Nothing runs.',btn:'Reject and regenerate',ph:'e.g. 200 genes is too few for a stable permutation test; use 500.',need:true},
+    modify:{label:'Replace the code',hint:'Your text replaces the proposed code. Approving your version sends it, unchanged, to the sandbox.',btn:'Use my code and run',code:true,need:true},
+    inject:{label:'Inject knowledge',hint:'Add a fact or constraint. The design step regenerates with it, and the fact is logged in the lineage.',btn:'Inject and regenerate',ph:'e.g. tRNA gene copy number in E. coli is roughly proportional to codon demand.',need:true}
+  };
+  function togglePanel(act){
+    const p=$('#apanel');
+    $$('#acts [data-act]').forEach(b=>b.setAttribute('aria-expanded',b.dataset.act===act&&mode!==act?'true':'false'));
+    if(mode===act){mode=null;p.hidden=true;draw();return;}
+    mode=act; const c=cfg[act];
+    $('#alabel').textContent=c.label; $('#ahint').textContent=c.hint; $('#aconfirm').textContent=c.btn; $('#aerr').textContent='';
+    const t=$('#atext'); t.className=c.code?'codey':''; t.value=c.code?CODE():''; t.placeholder=c.ph||'';
+    t.setAttribute('aria-label',c.label);
+    p.hidden=false; t.focus(); draw();
+  }
+  $$('#acts [data-act]').forEach(b=>b.addEventListener('click',()=>{
+    if(b.dataset.act==='approve') advance('Approved'); else togglePanel(b.dataset.act);
+  }));
+  $('#acancel').addEventListener('click',()=>{const a=mode;mode=null;$('#apanel').hidden=true;$$('#acts [data-act]').forEach(b=>b.setAttribute('aria-expanded','false'));draw();});
+  $('#lockBtn').addEventListener('click',()=>showToast('Run is locked. It unlocks only after you Approve.'));
+  $('#c3run').addEventListener('click',()=>showToast('Run is locked. It unlocks only after you Approve.'));
+  const stamp=()=>new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  $('#aconfirm').addEventListener('click',()=>{
+    const v=$('#atext').value.trim(); const c=cfg[mode];
+    if(c.need&&!v){$('#aerr').textContent=mode==='reject'?'Please give a reason. Rejections without one are not accepted.':'Please enter text first.';$('#atext').focus();return;}
+    if(mode==='modify'){ advance('Modified by you'); return; }
+    const act=mode; mode=null; $('#apanel').hidden=true; $$('#acts [data-act]').forEach(b=>b.setAttribute('aria-expanded','false'));
+    log(act==='reject'?'Rejected':'Injected knowledge',v);
+    $('#regentext').textContent=act==='reject'?'Rejected. Super is regenerating the design with your reason…':'Super is regenerating the design with your fact…';
+    $('#regen').hidden=false; $('#acts').style.opacity='.45'; $$('#acts button').forEach(b=>b.disabled=true);
+    setTimeout(()=>{ $('#regen').hidden=true; $('#acts').style.opacity=''; $$('#acts button').forEach(b=>b.disabled=false);
+      log('Design regenerated','New proposal is ready; it still needs your decision.'); showToast('Design regenerated. Still waiting for your decision.'); },1900);
+    draw();
+  });
+  function log(t,m){
+    const li=document.createElement('li'); li.innerHTML=`<span class="t">${stamp()}</span><span><b></b> <span class="m"></span></span>`;
+    $('b',li).textContent=t+(m?' —':''); $('.m',li).textContent=m?'“'+m.slice(0,160)+'”':''; if(t==='Design regenerated') $('.m',li).textContent=m;
+    $('#dlog').appendChild(li); draw();
+  }
+  let tick=null, secs=0;
+  function advance(word){
+    mode=null; $('#apanel').hidden=true;
+    $('#waitmsg').hidden=true; $('#donemsg').hidden=false; $('#donetext').textContent=word+'. Code sent to the ConTree sandbox.';
+    $('#acts').hidden=true; $('#alts').hidden=true; $('#undo').hidden=false;
+    $('#dcopy').innerHTML='Record <span class="mono">763d8f3af247</span>. The code below ran exactly as shown to the sandbox <span class="mono">palissy/base/python:3.12-numpy</span>; cell 4 is now running.';
+    log(word,'experiment code sent to ConTree');
+    const lk=$('#c3run'); lk.setAttribute('aria-disabled','false'); lk.innerHTML='<svg><use href="#i-check"/></svg>';lk.setAttribute('aria-label','Approved; run started');
+    setState('c3','done','done · '+word.toLowerCase());
+    $('#topWait').hidden=true; $('#gateState').textContent='done';
+    setState('c4','running','running in ConTree');
+    $('#c4idle').hidden=true; $('#c4live').classList.add('on');
+    $('#c4lat').textContent='0.0 s';
+    $('#tr3 li:last-child').innerHTML='<b>human approve</b> 763d8f3af247';
+    $('#tr4 li:nth-child(3)').innerHTML='<b>contree.run</b> running';
+    clearInterval(tick); secs=0;
+    tick=setInterval(()=>{secs+=.1; if(secs>19.9){clearInterval(tick);return;} $('#c4time').textContent=secs.toFixed(1); $('#c4lat').textContent=secs.toFixed(1)+' s';},100);
+    showToast(word+'. Cell 4 is now running in ConTree.');
+    document.getElementById('c4').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth',block:'center'});
+    setTimeout(draw,60);
+  }
+  $('#undo').addEventListener('click',()=>{
+    clearInterval(tick);
+    $('#waitmsg').hidden=false; $('#donemsg').hidden=true; $('#acts').hidden=false; $('#alts').hidden=false; $('#undo').hidden=true;
+    $('#dcopy').innerHTML='Approving sends <b>exactly the code above</b> to an isolated ConTree sandbox (<span class="mono">palissy/base/python:3.12-numpy</span>, 20 s, no network). Reject, modify or inject a fact and the design step runs again; nothing executes in the meantime.';
+    $('#dlog').innerHTML='';
+    const lk=$('#c3run'); lk.setAttribute('aria-disabled','true'); lk.innerHTML='<svg><use href="#i-lock"/></svg>';lk.setAttribute('aria-label','Run is locked until you approve');
+    setState('c3','waiting','waiting for you'); setState('c4','pending','pending · needs approval');
+    $('#topWait').hidden=false; $('#gateState').textContent='waiting';
+    $('#c4idle').hidden=false; $('#c4live').classList.remove('on'); $('#c4lat').textContent='—';
+    $('#tr3 li:last-child').innerHTML='<b>human gate</b> pending'; $('#tr4 li:nth-child(3)').innerHTML='<b>contree.run</b> pending';
+    draw();
+  });
+
+  /* ---------- tabs ---------- */
+  const tabs=$$('.tab');
+  tabs.forEach(t=>t.addEventListener('click',()=>selTab(t)));
+  tabs.forEach((t,i)=>t.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){const n=tabs[(i+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length];selTab(n);n.focus();}
+  }));
+  function selTab(t){tabs.forEach(x=>{const on=x===t;x.setAttribute('aria-selected',on);x.tabIndex=on?0:-1;document.getElementById(x.getAttribute('aria-controls')).hidden=!on;});draw();}
+
+  /* ---------- minimap scroll spy ---------- */
+  const links=$$('.minimap a');
+  const io=new IntersectionObserver(es=>{es.forEach(e=>{ if(e.isIntersecting){links.forEach(a=>a.removeAttribute('aria-current')); const a=$(`.minimap a[data-c="${e.target.id}"]`); if(a)a.setAttribute('aria-current','true');}});},{rootMargin:'-30% 0px -60% 0px'});
+  $$('.cell').forEach(c=>io.observe(c));
+
+  /* ---------- elapsed ---------- */
+  let el=4*60+12; setInterval(()=>{el++; $('#elapsed').textContent=Math.floor(el/60)+':'+String(el%60).padStart(2,'0');},1000);
+
+  draw(); setTimeout(draw,300);
+})();
+</script>
+</body>
+</html>

@@ -40,6 +40,28 @@ class ScriptedGate:
         return self._decisions.pop(0) if self._decisions else Decision("approve")
 
 
+class ApiGate:
+    """Blocks the pipeline on an asyncio future until the HTTP API delivers a decision.
+
+    The pending gate is also persisted, so a page refresh can rediscover it. `registry` maps
+    gate id -> future and is shared with the API process that resolves them.
+    """
+
+    def __init__(self, store, project_id: str, registry: dict, get_cycle=lambda: 1):
+        self.store, self.project_id = store, project_id
+        self.registry, self.get_cycle = registry, get_cycle
+
+    async def review(self, stage: str, title: str, proposal: dict) -> Decision:
+        gid = self.store.create_gate(self.project_id, self.get_cycle(), stage, title, proposal)
+        future: asyncio.Future = asyncio.get_running_loop().create_future()
+        self.registry[gid] = future
+        try:
+            return await future
+        finally:
+            self.registry.pop(gid, None)
+            self.store.resolve_gate(gid)
+
+
 class CliGate:
     async def review(self, stage: str, title: str, proposal: dict) -> Decision:
         print(f"\n=== Gate: {title} ===")
