@@ -46,10 +46,27 @@ Be specific: name the exact tool or model.
 
 ## ConTree Sandboxes (fork / rollback under load)
 
-- 2026-09-29: Blocked at onboarding. `contree auth` succeeds and `whoami` returns 200, but the profile
-  shows status `inactive` and `images` / `use` return `HTTP 403: Insufficient permissions: list and
-  spawn`. Same API key and project as inference, which works. Emailed contree@nebius.com; awaiting reply.
-- The CLI reads `NEBIUS_API_KEY` / `NEBIUS_AI_PROJECT` for `contree auth`, and `contree agent` prints a
-  clear agent manual. Both were good onboarding touches.
-- Not yet known: the exact CLI/SDK commands behind fork/rollback in practice. `palissy/sandbox/contree.py`
-  is written from the manual and untested.
+- 2026-09-29: Blocked at onboarding. `contree auth` succeeded and `whoami` returned 200, but the profile
+  showed status `inactive` and `images` / `use` returned `HTTP 403: Insufficient permissions: list and
+  spawn`, while the same API key and project worked for inference. Emailed contree@nebius.com.
+  Nothing in the CLI or docs said Sandboxes needed a separate activation; `whoami` succeeding while
+  every other call 403'd made it look like a client bug. A clearer error ("Sandboxes not enabled for
+  this project") would have saved a day.
+- 2026-09-30: Nebius confirmed activation; profile status flipped to `ok` with no re-auth needed.
+- Round trip verified by hand, then through `palissy/sandbox/contree.py`: run -> checkpoint ->
+  `session branch` + `checkout` -> write a file on the branch -> `checkout main` -> file is gone.
+  Fork/rollback is real filesystem isolation and cheap (a run takes ~5s including VM start).
+- Things that differed from what I expected (each cost a failed call):
+  - `contree file put` does not exist; files go in with `run -F host:/instance/path` or `file cp`.
+  - `cd /work` fails on a fresh image; attaching a file creates the directory.
+  - `python:3.12` has no numpy. Building a base image once (`pip install`, then `tag`) and reusing
+    the tag is the right pattern; `contree images --prefix=` made the existence check easy.
+  - A timed-out `run` exits 127 on Linux but came back as 4294967295 (unsigned -1) on Windows, so a
+    timeout is indistinguishable from "command not found" without checking wall time.
+  - On Windows the `host_path:instance_path` syntax collides with drive letters (`C:\...`); using a
+    relative host path with cwd set avoids it. Git Bash also rewrites `/work` to
+    `C:/Program Files/Git/work` unless `MSYS_NO_PATHCONV=1`.
+  - `-L error` is needed to keep CLI log lines out of stderr; exit codes propagate correctly.
+- Good: `contree agent` manual, the session/branch model, and per-run history (`session show`) map
+  directly onto an experiment-branching loop. Each run is a checkpoint, so every result is replayable.
+- Sessions accumulate (`agent_palissy_*`); I have not yet cleaned up with `session delete`.

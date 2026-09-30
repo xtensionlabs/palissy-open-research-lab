@@ -16,15 +16,16 @@ HYPOTHESIS_SYSTEM = (
 
 CODE_SYSTEM = (
     "Write a single self-contained Python 3 script that tests the hypothesis by simulation or "
-    "analysis. Standard library and numpy only, no network, no file I/O, deterministic (fixed "
-    "seed). HARD LIMIT: it must finish in under 20 seconds on one CPU core, so use small "
+    "analysis. Standard library and numpy only (scipy is NOT installed and numpy has no erf; "
+    "use math.erf), no network, no file I/O, deterministic (fixed seed). HARD LIMIT: it must finish in under 20 seconds on one CPU core, so use small "
     "populations, few loci and a fixed, modest number of steps; never loop until convergence. "
     "Print clear results and end with a line 'RESULT: supports' or 'RESULT: refutes' or "
     "'RESULT: inconclusive'. Reply with only the code in one ```python block."
 )
 
 REPAIR_SYSTEM = (
-    "The experiment script below failed or timed out. Fix it. Keep the scientific intent, but "
+    "The experiment script below failed or timed out. Read the traceback, identify the exact "
+    "failing line, and do NOT repeat the same call or approach. Keep the scientific intent, but "
     "cut the computation (fewer steps, smaller sizes, vectorise) so it finishes in under 20 "
     "seconds. Same rules as before: standard library and numpy only, deterministic, ends with a "
     "'RESULT: ...' line. Reply with only the corrected code in one ```python block."

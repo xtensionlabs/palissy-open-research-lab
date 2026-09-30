@@ -111,7 +111,7 @@ async def test_modify_replaces_the_hypothesis(tmp_path):
     assert s.hypothesis == "My own hypothesis"
 
 
-async def test_failed_run_gets_one_repair(tmp_path):
+async def test_failed_run_is_repaired_then_succeeds(tmp_path):
     p, store, pid, _, ex, _ = make(tmp_path, [], [FAIL, OK])
     s = await p.run("q")
     assert s.repaired and ex.ran[-1] == "print('fixed')"
@@ -119,7 +119,7 @@ async def test_failed_run_gets_one_repair(tmp_path):
 
 
 async def test_failure_after_repair_is_reported_as_failed(tmp_path):
-    p, *_ = make(tmp_path, [], [FAIL, FAIL])
+    p, *_ = make(tmp_path, [], [FAIL, FAIL, FAIL])
     s = await p.run("q")
     assert s.verdict == "failed"  # exit code overrides the model's verdict
 

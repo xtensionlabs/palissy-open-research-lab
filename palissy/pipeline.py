@@ -22,6 +22,7 @@ from .stages.hypothesis import (Hypothesis, design_experiment, propose_hypothesi
                                 repair_experiment)
 
 MAX_ATTEMPTS = 3
+MAX_REPAIRS = 2
 LESSONS_KEY = "strategy_lessons"
 
 
@@ -149,12 +150,12 @@ class Pipeline:
 
     async def execution_stage(self, s: CycleState) -> None:
         parent = s.code_record_id
-        for attempt in range(2):  # one bounded repair
+        for attempt in range(MAX_REPAIRS + 1):  # bounded repair passes
             result = await self.executor.run(s.code)
             rec = log_execution(self.log, s.code, result, parents=[parent])
             s.backend, s.stdout, s.stderr = result.backend, result.stdout, result.stderr
             s.exit_code, s.exec_record_id = result.exit_code, rec.id
-            if result.ok or attempt == 1:
+            if result.ok or attempt == MAX_REPAIRS:
                 return
             code, repair_rec = await repair_experiment(
                 self.router, s.code, result.stderr or result.stdout, rec.id)

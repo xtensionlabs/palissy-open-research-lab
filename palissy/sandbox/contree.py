@@ -1,10 +1,13 @@
-"""ConTree executor via the `contree` CLI, following `contree agent` (CLI manual).
+"""ConTree executor via the `contree` CLI (verified against the live API on 2026-09-30).
 
-UNTESTED: written against the manual while Sandboxes access was returning 403. Verify each
-command once access is enabled, and record what differs in FEEDBACK.md.
-
-Mapping: one ConTree session per project; each run creates a checkpoint; fork = new session
-branch; rollback = checkout the base branch.
+Behaviours confirmed by hand, which this module relies on:
+  - every non-disposable `run` becomes a checkpoint in the session history
+  - `session branch X` + `checkout X` forks from the current checkpoint; files written on the
+    branch are absent after `checkout main` (real filesystem isolation, not just bookkeeping)
+  - a command's exit code is propagated by `run`; `-L error` keeps stderr free of CLI log lines
+  - `python:3.12` has no numpy, so a tagged base image with numpy is built once and reused
+  - `cd /work` fails on a fresh image; attaching a file with `-F host:/work/x` creates the dir
+  - a timed-out `run` exits 127 or a wrapped -1 (mapped to 124 to match the local executor)
 """
 
 import asyncio
@@ -13,7 +16,10 @@ from pathlib import Path
 
 from .base import ExecResult, timed
 
-BASE_IMAGE = "tag:python:3.12"
+PUBLIC_IMAGE = "tag:python:3.12"
+BASE_TAG = "palissy/base/python:3.12-numpy"
+WORKDIR = "/work"
+SCRIPT = f"{WORKDIR}/experiment.py"
 
 
 class ContreeError(RuntimeError):
@@ -23,43 +29,62 @@ class ContreeError(RuntimeError):
 class ContreeExecutor:
     name = "contree"
 
-    def __init__(self, session_key: str, image: str = BASE_IMAGE, base_branch: str = "main"):
+    def __init__(self, session_key: str, base_branch: str = "main"):
         self.session = session_key
-        self.image = image
         self.base_branch = base_branch
         self._ready = False
 
-    async def _cli(self, *args: str, timeout: int = 300) -> tuple[int, str, str]:
+    async def _cli(self, *args: str, timeout: int = 300, cwd: str | None = None
+                   ) -> tuple[int, str, str]:
         proc = await asyncio.create_subprocess_exec(
-            "contree", "-S", self.session, *args,
+            "contree", "-L", "error", "-S", self.session, *args, cwd=cwd,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
         )
-        out, err = await asyncio.wait_for(proc.communicate(), timeout)
+        try:
+            out, err = await asyncio.wait_for(proc.communicate(), timeout)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            return 124, "", f"contree CLI timed out after {timeout}s"
         return proc.returncode or 0, out.decode(errors="replace"), err.decode(errors="replace")
 
+    async def _base_image_exists(self) -> bool:
+        rc, out, _ = await self._cli("images", f"--prefix={BASE_TAG}")
+        return rc == 0 and BASE_TAG in out
+
     async def _ensure_session(self) -> None:
+        """Start the session from the tagged numpy base image, building it on first use."""
         if self._ready:
             return
-        for args in (("use", self.image), ("cd", "/work")):
-            rc, _, err = await self._cli(*args)
+        if await self._base_image_exists():
+            rc, _, err = await self._cli("use", f"tag:{BASE_TAG}")
             if rc != 0:
-                raise ContreeError(f"contree {' '.join(args)} failed: {err.strip()}")
+                raise ContreeError(f"contree use failed: {err.strip()}")
+        else:
+            for args in (("use", PUBLIC_IMAGE), ("run", "-t", "300", "--", "pip", "install",
+                                                 "numpy"), ("tag", BASE_TAG)):
+                rc, _, err = await self._cli(*args, timeout=400)
+                if rc != 0:
+                    raise ContreeError(f"contree {' '.join(args)} failed: {err.strip()}")
         self._ready = True
 
     async def run(self, code: str, *, timeout: int = 120) -> ExecResult:
         await self._ensure_session()
         start = timed()
-        # Ship the script as a session file, then run it: one mutating step per run.
-        with tempfile.TemporaryDirectory(prefix="palissy_") as tmp:
-            script = Path(tmp) / "experiment.py"
-            script.write_text(code, encoding="utf-8")
-            rc, _, err = await self._cli("file", "put", str(script), "/work/experiment.py")
-            if rc != 0:
-                raise ContreeError(f"contree file put failed: {err.strip()}")
-        rc, out, err = await self._cli("run", "--", "python", "/work/experiment.py",
-                                       timeout=timeout)
-        return ExecResult(stdout=out, stderr=err, exit_code=rc,
-                          duration_s=timed() - start, backend=self.name)
+        with tempfile.TemporaryDirectory(prefix="palissy_", ignore_cleanup_errors=True) as tmp:
+            (Path(tmp) / "experiment.py").write_text(code, encoding="utf-8")
+            # Relative host path + cwd=tmp avoids ':' in a Windows drive letter clashing with
+            # the host_path:instance_path attachment syntax.
+            rc, out, err = await self._cli(
+                "run", "-t", str(timeout), "-F", f"experiment.py:{SCRIPT}", "--",
+                "python", SCRIPT, timeout=timeout + 60, cwd=tmp)
+        duration = timed() - start
+        # A timed-out run surfaces as 127 or as a wrapped -1 (4294967295 on Windows). Require
+        # the wall clock to have reached the limit so a real "command not found" 127 is kept.
+        if (rc == 127 or rc > 255 or rc < 0) and duration >= timeout - 1:
+            rc, err = 124, err or f"timeout after {timeout}s"
+        return ExecResult(stdout=out, stderr=err, exit_code=rc, duration_s=duration,
+                          backend=self.name)
 
     async def fork(self, branch: str) -> None:
         await self._ensure_session()
