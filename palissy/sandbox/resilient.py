@@ -18,15 +18,16 @@ class ResilientExecutor:
         self.name = primary.name
         self.degraded = False
 
-    async def run(self, code: str, *, timeout: int = 120) -> ExecResult:
+    async def run(self, code: str, *, args: list[str] | None = None,
+                  timeout: int = 120) -> ExecResult:
         if not self.degraded:
             try:
-                return await self.primary.run(code, timeout=timeout)
+                return await self.primary.run(code, args=args, timeout=timeout)
             except Exception as exc:  # infrastructure failure, not a failing experiment
                 log.warning("primary executor %s failed (%s); using %s",
                             self.primary.name, exc, self.fallback.name)
                 self.degraded = True
-        return await self.fallback.run(code, timeout=timeout)
+        return await self.fallback.run(code, args=args, timeout=timeout)
 
     async def fork(self, branch: str) -> None:
         if not self.degraded:

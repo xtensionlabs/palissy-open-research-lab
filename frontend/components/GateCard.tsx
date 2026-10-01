@@ -6,12 +6,16 @@ import { alternatives } from "@/lib/cost";
 import { usd } from "@/lib/format";
 import type { Gate, GateAction, Health, ProvRecord, Routing } from "@/lib/types";
 import { CodeBlock } from "./CodeBlock";
+import { CriticNote, PreReg, hasContract, hasCritique } from "./PreReg";
 
 const COPY = {
-  hypothesis: { n: 1, title: "Approve this hypothesis?", approve: "Approve", noun: "hypothesis" },
-  experiment_design: { n: 2, title: "Run this experiment?", approve: "Approve and run", noun: "code" },
-  strategy_update: { n: 3, title: "Keep these lessons?", approve: "Keep lessons", noun: "lessons" },
+  triage: { kicker: "Before anything runs", title: "Is this question testable?", approve: "Continue knowingly", noun: "question" },
+  hypothesis: { kicker: "Your decision · 1 of 3", title: "Approve this hypothesis?", approve: "Approve", noun: "hypothesis" },
+  experiment_design: { kicker: "Your decision · 2 of 3", title: "Run this experiment?", approve: "Approve and run", noun: "code" },
+  strategy_update: { kicker: "Your decision · 3 of 3", title: "Keep these lessons?", approve: "Keep lessons", noun: "lessons" },
 } as const;
+
+const str = (v: unknown) => (typeof v === "string" ? v : "");
 
 function lessonLines(text: string): string[] {
   return text
@@ -23,24 +27,40 @@ function lessonLines(text: string): string[] {
 function Proposal({ gate }: { gate: Gate }) {
   const p = gate.proposal;
   const [all, setAll] = useState(false);
-  if (gate.stage === "hypothesis") {
+  if (gate.stage === "triage") {
     return (
       <>
-        <p className="proposal">{p.hypothesis}</p>
-        {p.prediction && (
+        <p className="proposal"><b>{str(p.label)}</b> {str(p.reason)}</p>
+        {str(p.reframe) && (
           <p className="proposal">
-            <span className="sc">Prediction</span>
-            {p.prediction}
+            <span className="sc">Closest question a simulation can test</span>
+            {str(p.reframe)}
           </p>
         )}
       </>
     );
   }
+  if (gate.stage === "hypothesis") {
+    return (
+      <>
+        <p className="proposal">{str(p.hypothesis)}</p>
+        {str(p.prediction) && (
+          <p className="proposal">
+            <span className="sc">Prediction</span>
+            {str(p.prediction)}
+          </p>
+        )}
+        {str(p.warning) && <p className="flag" role="note">{str(p.warning)} Edit it, or reject it with a reason.</p>}
+      </>
+    );
+  }
   if (gate.stage === "experiment_design") {
-    const code = p["experiment code"] ?? "";
+    const code = str(p["experiment code"]);
     const n = code.trimEnd().split("\n").length;
     return (
       <>
+        <PreReg contract={hasContract(p.preregistration) ? p.preregistration : null} error={str(p.preregistration_error)} />
+        {hasCritique(p.critic) && <CriticNote critique={p.critic} />}
         <CodeBlock code={code} label="Proposed experiment code" expanded={all} />
         {n > 24 && (
           <button type="button" className="toggle" aria-expanded={all} onClick={() => setAll(!all)}>
@@ -50,8 +70,8 @@ function Proposal({ gate }: { gate: Gate }) {
       </>
     );
   }
-  const before = lessonLines(p["lessons before"] ?? "");
-  const after = lessonLines(p["lessons after"] ?? "");
+  const before = lessonLines(str(p["lessons before"]));
+  const after = lessonLines(str(p["lessons after"]));
   const kept = after.filter((l) => before.includes(l));
   const added = after.filter((l) => !before.includes(l));
   const removed = before.filter((l) => !after.includes(l));
@@ -86,9 +106,10 @@ function Proposal({ gate }: { gate: Gate }) {
 
 function initialModify(gate: Gate): string {
   const p = gate.proposal;
-  if (gate.stage === "hypothesis") return p.hypothesis ?? "";
-  if (gate.stage === "experiment_design") return p["experiment code"] ?? "";
-  return lessonLines(p["lessons after"] ?? "").join("; ");
+  if (gate.stage === "triage") return str(p.reframe) || str(p.question);
+  if (gate.stage === "hypothesis") return str(p.hypothesis);
+  if (gate.stage === "experiment_design") return str(p["experiment code"]);
+  return lessonLines(str(p["lessons after"])).join("; ");
 }
 
 export function GateCard({
@@ -136,13 +157,15 @@ export function GateCard({
     }
   }
 
+  const triage = gate.stage === "triage";
+  const reframe = triage ? str(gate.proposal.reframe) : "";
   const lastCode = [...records].reverse().find((r) => r.kind === "model" && r.stage === "experiment_design");
   const alts = gate.stage === "experiment_design" ? alternatives(lastCode, routing) : null;
 
   return (
     <section className="decision" id="gate" aria-labelledby="gate-title">
       <div className="kicker">
-        <span className="sc">Your decision · {copy.n} of 3</span>
+        <span className="sc">{copy.kicker}</span>
       </div>
       <h3 id="gate-title">{copy.title}</h3>
       <p className="waitline">
@@ -173,21 +196,36 @@ export function GateCard({
         </p>
       )}
 
-      <div className="actions" role="group" aria-label="Decision">
-        <button className="btn primary" disabled={busy} onClick={() => submit("approve")}>
-          {busy && open === null ? "Sending…" : copy.approve}
-        </button>
-        <button className="btn" aria-expanded={open === "reject"} onClick={() => toggle("reject")}>Reject</button>
-        <button className="btn" aria-expanded={open === "modify"} onClick={() => toggle("modify")}>Modify</button>
-        <button className="btn" aria-expanded={open === "inject"} onClick={() => toggle("inject")}>Add knowledge</button>
-      </div>
+      {triage ? (
+        <div className="actions" role="group" aria-label="Decision">
+          {reframe && (
+            <button className="btn primary" disabled={busy} onClick={() => submit("modify", reframe)}>
+              {busy && open === null ? "Sending…" : "Use this question"}
+            </button>
+          )}
+          <button className={reframe ? "btn" : "btn primary"} disabled={busy} onClick={() => submit("approve")}>
+            {copy.approve}
+          </button>
+          <button className="btn" aria-expanded={open === "modify"} onClick={() => toggle("modify")}>Edit question</button>
+          <button className="btn" aria-expanded={open === "inject"} onClick={() => toggle("inject")}>Add context</button>
+        </div>
+      ) : (
+        <div className="actions" role="group" aria-label="Decision">
+          <button className="btn primary" disabled={busy} onClick={() => submit("approve")}>
+            {busy && open === null ? "Sending…" : copy.approve}
+          </button>
+          <button className="btn" aria-expanded={open === "reject"} onClick={() => toggle("reject")}>Reject</button>
+          <button className="btn" aria-expanded={open === "modify"} onClick={() => toggle("modify")}>Modify</button>
+          <button className="btn" aria-expanded={open === "inject"} onClick={() => toggle("inject")}>Add knowledge</button>
+        </div>
+      )}
 
       {open && (
         <div className="reveal">
           <label htmlFor="gate-text">
             {open === "reject" && "Why reject?"}
             {open === "modify" && (gate.stage === "strategy_update" ? "Lessons, separated by ;" : `Your ${copy.noun}`)}
-            {open === "inject" && "What should it know?"}
+            {open === "inject" && (triage ? "What should it know about the question?" : "What should it know?")}
           </label>
           <textarea
             id="gate-text"
@@ -200,7 +238,7 @@ export function GateCard({
           {error && <p className="form-error" role="alert">{error}</p>}
           <div className="row">
             <button className="btn primary sm" disabled={busy} onClick={() => submit(open, text)}>
-              {busy ? "Sending…" : open === "modify" ? "Use mine" : open === "reject" ? "Reject" : "Add and regenerate"}
+              {busy ? "Sending…" : open === "modify" ? "Use mine" : open === "reject" ? "Reject" : triage ? "Add and check again" : "Add and regenerate"}
             </button>
             <button className="btn ghost sm" onClick={() => setOpen(null)}>Cancel</button>
           </div>

@@ -14,7 +14,7 @@ from palissy.provenance import ProvenanceLog
 from palissy.sandbox.base import ExecResult
 from palissy.sandbox.resilient import ResilientExecutor
 
-from .test_pipeline import OK, StubExecutor, StubLit, StubRouter
+from .test_pipeline import GOOD, StubExecutor, StubLit, StubRouter
 
 Q = {"question": "Does GC content correlate with mutation rate?"}
 
@@ -22,7 +22,7 @@ Q = {"question": "Does GC content correlate with mutation rate?"}
 def factory_for(tmp_path, auto=False):
     def factory(pid, store, gate, log, executor_kind):
         return Pipeline(router=StubRouter(log), literature=StubLit(log),
-                        executor=StubExecutor([OK]), store=store, log=log,
+                        executor=StubExecutor([GOOD]), store=store, log=log,
                         gate=ScriptedGate([]) if auto else gate,
                         notebook_dir=str(tmp_path))
     return factory
@@ -162,7 +162,7 @@ def test_restart_marks_orphaned_runs_interrupted(tmp_path):
 class Exploding:
     name = "contree"
 
-    async def run(self, code, *, timeout=120):
+    async def run(self, code, *, args=None, timeout=120):
         raise RuntimeError("503")
 
     async def fork(self, b): raise RuntimeError("503")

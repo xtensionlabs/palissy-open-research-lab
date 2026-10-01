@@ -35,7 +35,10 @@ async def run(question: str, executor_kind: str, auto: bool) -> None:
     )
     print(f"Project {pid}: {question}")
     state = await pipeline.run(question)
-    print(f"\nVerdict: {state.verdict}\n{state.findings}")
+    print(f"\nVerdict: {state.verdict}")
+    for reason in state.verdict_reasons:
+        print(f"  - {reason}")
+    print(state.findings)
     print(f"Notebook: {state.notebook_path}")
     print(f"Spend: ${store.project_cost(pid):.4f}\n\n=== Provenance ===\n{log.render()}")
 

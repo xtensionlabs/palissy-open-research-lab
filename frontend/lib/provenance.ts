@@ -11,7 +11,7 @@ export interface Claim {
   sourceIndex?: number;
 }
 
-export type ChainKind = "claim" | "human" | "model" | "search" | "sandbox" | "source";
+export type ChainKind = "claim" | "human" | "model" | "search" | "sandbox" | "source" | "rule";
 
 export interface ChainItem {
   key: string;
@@ -38,7 +38,7 @@ function describe(r: ProvRecord): ChainItem {
       key: r.id,
       kind: "human",
       title,
-      lines: [stageLabel(r.stage === "strategy_update" ? "reflection" : r.stage)],
+      lines: [stageLabel(r.stage)],
       quote: payload,
       recordId: r.id,
     };
@@ -52,12 +52,25 @@ function describe(r: ProvRecord): ChainItem {
       recordId: r.id,
     };
   }
+  if (r.kind === "rule") {
+    const verdict = r.outputs.verdict as string | undefined;
+    return {
+      key: r.id,
+      kind: "rule",
+      title: verdict ? `Verdict by rule: ${verdict}` : "Pre-registration frozen",
+      lines: verdict
+        ? ["From the pre-registration and controls, not a model"]
+        : [`hash ${String(r.outputs.contract_hash ?? "")}`],
+      recordId: r.id,
+    };
+  }
   if (r.kind === "sandbox") {
     const code = r.outputs.exit_code as number | undefined;
+    const arm = (r.inputs.args as string[] | undefined)?.[0];
     return {
       key: r.id,
       kind: "sandbox",
-      title: code === 0 ? "Ran in sandbox" : "Sandbox run failed",
+      title: `${code === 0 ? "Ran in sandbox" : "Sandbox run failed"}${arm ? ` · ${arm}` : ""}`,
       lines: [`exit ${code ?? "?"} · ${seconds(r.latency_s)}`],
       recordId: r.id,
     };

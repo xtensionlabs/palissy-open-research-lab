@@ -42,6 +42,20 @@ Be specific: name the exact tool or model.
   budget was added to its prompt. Reflection needs the same hard constraints as design.
 - Full pipeline cycle with Ultra + Super + Nano (7 stages, 3 human gates): $0.0111.
 
+- 2026-09-30, reasoning models and token budgets: Ultra (and Super) return their thinking in a separate
+  `reasoning_content` field, and it counts against `max_tokens`. With `max_tokens=4000`, Ultra as critic and
+  as reflector spent the whole budget thinking and stopped mid-JSON, which crashed two live runs. Budgets
+  of 6000-8000 plus one "reply again, shorter" retry fixed it. A per-request switch such as
+  `chat_template_kwargs: {enable_thinking: false}` does work on Ultra (7 tokens vs 93 on a trivial
+  prompt), but it isn't documented in the Token Factory API reference I found. Worth documenting.
+- Ultra as design critic, given a fixed-seed simulation, first objected that a fixed seed "makes the
+  outcome predictable". That is wrong (reproducibility requires it), and it only stopped after the prompt
+  said so. Super's first-pass critic was more useful than expected; Ultra's second look mostly agreed.
+- Super wrote nested JSON for fields asked for as strings (`positive_control: {effect_planted, size}`),
+  so the contract parser flattens dicts to text rather than rejecting them.
+- A transient `APIConnectionError` killed one run mid-design. The `openai` SDK retries twice by default;
+  raised to 6.
+
 ## Base vs Fast flavors
 
 ## ConTree Sandboxes (fork / rollback under load)
@@ -70,3 +84,13 @@ Be specific: name the exact tool or model.
 - Good: `contree agent` manual, the session/branch model, and per-run history (`session show`) map
   directly onto an experiment-branching loop. Each run is a checkpoint, so every result is replayable.
 - Sessions accumulate (`agent_palissy_*`); I have not yet cleaned up with `session delete`.
+- 2026-09-30 spike (branching and replay, about $0 and 30 minutes):
+  - Several `contree run --use <image-uuid> -D` processes, each with its own `-S` session key, run fine in
+    parallel from one checkpoint image: 3 concurrent runs took 4.8s wall, the same as one. That is the
+    right primitive for fanning out experiment arms, and it doesn't depend on `session checkout`, which
+    mutates a single local pointer and isn't safe to share between concurrent callers.
+  - Replay is exact: a fresh session from the base tag with the script attached again, and a disposable
+    run from the saved checkpoint image, both reproduced the seeded output byte for byte.
+  - `session show` / `session` with `-o json` gave me `current_image` (a UUID) directly, which is what
+    makes "run from this checkpoint" scriptable. That's a good, underdocumented affordance.
+  - `session delete -y` accepts several keys at once, which made cleanup easy.

@@ -30,7 +30,13 @@ async def test_local_executor_reports_failure_and_timeout():
     assert (await LocalExecutor().run("import time; time.sleep(5)", timeout=1)).exit_code == 124
 
 
-def test_script_result_takes_last_result_line():
-    from palissy.stages.analysis import script_result
-    assert script_result("x\nRESULT: supports\nRESULT: inconclusive\n") == "inconclusive"
-    assert script_result("no result here") is None
+async def test_local_executor_passes_the_arm_argument():
+    r = await LocalExecutor().run("import sys; print(sys.argv[1:])", args=["positive"])
+    assert r.stdout.strip() == "['positive']"
+
+
+def test_reflection_prefix_only_for_unusable_results():
+    from palissy.stages.analysis import unusable_prefix
+    assert unusable_prefix("inconclusive", ["p = 1."]).startswith("Result unusable: p = 1.")
+    assert unusable_prefix("supports", []) == ""
+    assert unusable_prefix("inconclusive", []) == ""

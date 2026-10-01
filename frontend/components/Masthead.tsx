@@ -5,7 +5,7 @@ import { clock, usd } from "@/lib/format";
 import type { Gate, Project, ProvRecord } from "@/lib/types";
 import { Question } from "./Inline";
 
-const GATE_NAME = { hypothesis: "Hypothesis", experiment_design: "Experiment", strategy_update: "Strategy" } as const;
+const GATE_NAME = { triage: "Question", hypothesis: "Hypothesis", experiment_design: "Experiment", strategy_update: "Strategy" } as const;
 
 export function Masthead({
   project, records, allCost, gate,

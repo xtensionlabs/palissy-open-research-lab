@@ -11,15 +11,19 @@ import { CodeBlock } from "./CodeBlock";
 import { GateCard } from "./GateCard";
 import { firstSentence } from "@/lib/text";
 import { Inline } from "./Inline";
+import { Checks, CriticNote, PreReg, hasContract, hasCritique } from "./PreReg";
 
 type Status = "done" | "current" | "pending";
 const ORDER: string[] = STAGES.map((s) => s.key);
+const NO = (key: StageKey) => ORDER.indexOf(key) + 1;
+const ARM_LABEL = { treatment: "Treatment", positive: "Positive control", negative: "Negative control" } as const;
 
 // Which record stages belong to each pipeline stage, for the per-stage timing and cost.
 const RECORD_STAGES: Record<StageKey, string[]> = {
+  triage: ["triage"],
   literature: ["literature", "literature_summary"],
   hypothesis: ["hypothesis"],
-  experiment_design: ["experiment_design"],
+  experiment_design: ["experiment_design", "design_critic", "design_critic_escalated"],
   execution: ["execution", "code_generation"],
   analysis: ["analysis"],
   reflection: ["reflection"],
@@ -113,6 +117,13 @@ export function ResearchChapter(p: Props) {
   const working = (key: StageKey) => statusOf(key) === "current" && !broken;
   const sandboxRuns = records.filter((r) => r.kind === "sandbox").sort((a, b) => a.ts - b.ts);
   const codeLines = st.code ? st.code.replace(/\n$/, "").split("\n").length : 0;
+  const contract = hasContract(st.contract) ? st.contract : null;
+  const critic = hasCritique(st.critique) ? st.critique : null;
+  const triage = st.triage && "category" in st.triage ? st.triage : null;
+  const checks = st.checks ?? [];
+  const reasons = st.verdict_reasons ?? [];
+  const unusable = st.verdict === "inconclusive" || st.verdict === "failed";
+  const armOf = (r: ProvRecord) => (r.inputs.args as string[] | undefined)?.[0] as keyof typeof ARM_LABEL | undefined;
 
   const decisionLine = (d: Decision) =>
     d.action === "approve" ? "You approved it."
@@ -122,8 +133,33 @@ export function ResearchChapter(p: Props) {
 
   return (
     <>
-      {/* 1 LITERATURE */}
-      <Section no={1} id="literature" title="Literature" status={statusOf("literature")}
+      {/* QUESTION CHECK */}
+      <Section no={NO("triage")} id="triage" title="Question" status={statusOf("triage")}
+        badge={badgeFor("triage", !!gateFor("triage"))} stat={stat("triage")}>
+        {gateFor("triage") ? (
+          <GateCard key={gate!.id} gate={gate!} records={records} routing={p.routing} health={p.health} onDecided={p.onDecided} />
+        ) : triage ? (
+          triage.category === "testable" ? (
+            <p className="oneline">Testable by simulation.</p>
+          ) : (
+            <>
+              <p className="oneline"><b className="flag-word">{triage.label}</b> {triage.reason}</p>
+              <p className="decided-line">
+                {triage.decision === "reframed"
+                  ? <>You reframed it: <i>{st.question}</i></>
+                  : "You chose to continue knowingly."}
+              </p>
+            </>
+          )
+        ) : statusOf("triage") === "done" ? (
+          <p className="oneline pend">Not checked on this older run.</p>
+        ) : (
+          <p className="oneline pend">{working("triage") ? "Checking whether a simulation can test this…" : "Whether a simulation can test this."}</p>
+        )}
+      </Section>
+
+      {/* LITERATURE */}
+      <Section no={NO("literature")} id="literature" title="Literature" status={statusOf("literature")}
         badge={badgeFor("literature", false)} stat={stat("literature")}>
         {st.literature_summary ? (
           <>
@@ -160,7 +196,7 @@ export function ResearchChapter(p: Props) {
       </Section>
 
       {/* 2 HYPOTHESIS */}
-      <Section no={2} id="hypothesis" title="Hypothesis" status={statusOf("hypothesis")}
+      <Section no={NO("hypothesis")} id="hypothesis" title="Hypothesis" status={statusOf("hypothesis")}
         badge={badgeFor("hypothesis", !!gateFor("hypothesis"))} stat={stat("hypothesis")}>
         {gateFor("hypothesis") ? (
           <GateCard key={gate!.id} gate={gate!} records={records} routing={p.routing} health={p.health} onDecided={p.onDecided} />
@@ -188,7 +224,7 @@ export function ResearchChapter(p: Props) {
       </Section>
 
       {/* 3 EXPERIMENT */}
-      <Section no={3} id="experiment_design" title="Experiment" status={statusOf("experiment_design")}
+      <Section no={NO("experiment_design")} id="experiment_design" title="Experiment" status={statusOf("experiment_design")}
         badge={badgeFor("experiment_design", !!gateFor("experiment_design"))} stat={stat("experiment_design")}>
         {gateFor("experiment_design") ? (
           <GateCard key={gate!.id} gate={gate!} records={records} routing={p.routing} health={p.health} onDecided={p.onDecided} />
@@ -198,8 +234,27 @@ export function ResearchChapter(p: Props) {
               <ClaimText claim={p.claims.code} active={p.activeClaim} onSelect={p.onSelect}>
                 {codeLines}-line script{st.repaired ? ", repaired after a failed run" : ""}
               </ClaimText>
+              {contract
+                ? <span className="aside-tag">pre-registered · <span className="mono">{st.contract_hash}</span></span>
+                : st.contract_error !== undefined && <span className="aside-tag bad">not pre-registered</span>}
             </p>
-            <Toggle open={openKey === "code"} onClick={() => flip("code")}>{openKey === "code" ? "Hide code" : "Show code"}</Toggle>
+            {critic?.approved_over && (
+              <p className="flag" role="note">You ran this over the critic&rsquo;s {critic.approved_over}.</p>
+            )}
+            <div className="toggles">
+              {st.contract_error !== undefined && (
+                <Toggle open={openKey === "prereg"} onClick={() => flip("prereg")}>
+                  {openKey === "prereg" ? "Hide" : "Pre-registration and critic"}
+                </Toggle>
+              )}
+              <Toggle open={openKey === "code"} onClick={() => flip("code")}>{openKey === "code" ? "Hide code" : "Show code"}</Toggle>
+            </div>
+            {openKey === "prereg" && (
+              <div className="detail">
+                <PreReg contract={contract} hash={st.contract_hash} error={st.contract_error} />
+                {critic && <CriticNote critique={critic} />}
+              </div>
+            )}
             {openKey === "code" && <div className="detail"><CodeBlock code={st.code} label="Experiment code" /></div>}
           </>
         ) : statusOf("experiment_design") === "current" ? (
@@ -210,7 +265,7 @@ export function ResearchChapter(p: Props) {
       </Section>
 
       {/* 4 EXECUTION */}
-      <Section no={4} id="execution" title="Execution" status={statusOf("execution")}
+      <Section no={NO("execution")} id="execution" title="Execution" status={statusOf("execution")}
         badge={badgeFor("execution", false)} stat={stat("execution")}>
         {sandboxRuns.length > 0 ? (
           <>
@@ -232,10 +287,11 @@ export function ResearchChapter(p: Props) {
             <ol className="runs" aria-label="Sandbox runs">
               {sandboxRuns.map((r, i) => {
                 const ok = r.outputs.exit_code === 0;
+                const arm = armOf(r);
                 return (
                   <li key={r.id} className={ok ? "ok" : "bad"}>
-                    <span className="mark"><i aria-hidden="true" />Run {i + 1}</span>
-                    <span>{ok ? "passed" : `exit ${String(r.outputs.exit_code)}`} · {seconds(r.latency_s)}</span>
+                    <span className="mark"><i aria-hidden="true" />{arm ? ARM_LABEL[arm] : `Run ${i + 1}`}</span>
+                    <span>{ok ? "finished" : `exit ${String(r.outputs.exit_code)}`} · {seconds(r.latency_s)}</span>
                   </li>
                 );
               })}
@@ -249,21 +305,41 @@ export function ResearchChapter(p: Props) {
       </Section>
 
       {/* 5 ANALYSIS */}
-      <Section no={5} id="analysis" title="Analysis" status={statusOf("analysis")}
+      <Section no={NO("analysis")} id="analysis" title="Analysis" status={statusOf("analysis")}
         badge={badgeFor("analysis", false)} stat={stat("analysis")}>
         {st.verdict ? (
           <>
-            <p><span className={`verdict ${st.verdict}`}>{st.verdict}</span></p>
-            <p className="oneline" style={{ marginTop: 12 }}>
-              <ClaimText claim={p.claims.verdict} active={p.activeClaim} onSelect={p.onSelect}>{st.findings}</ClaimText>
+            <p className="verdict-row">
+              <span className={`verdict ${st.verdict}`}>{st.verdict}</span>
+              {checks.length > 0 && <span className="by-rule">by rule, from the pre-registration</span>}
             </p>
-            {st.caveats.length > 0 && (
-              <>
+            {critic?.approved_over && !unusable && (
+              <p className="flag" role="note">
+                The design critic called this run {critic.approved_over}: {critic.summary || "the outcome may be fixed by the parameters."}{" "}
+                Read this verdict with that in mind.
+              </p>
+            )}
+            {reasons.length > 0 && (
+              <ul className="reasons">{reasons.map((r, i) => <li key={i}>{r}</li>)}</ul>
+            )}
+            {st.findings && (
+              <p className="oneline" style={{ marginTop: 12 }}>
+                <ClaimText claim={p.claims.verdict} active={p.activeClaim} onSelect={p.onSelect}>{st.findings}</ClaimText>
+              </p>
+            )}
+            <div className="toggles">
+              {checks.length > 0 && (
+                <Toggle open={openKey === "chk"} onClick={() => flip("chk")}>
+                  {openKey === "chk" ? "Hide checks" : `Checks · ${checks.filter((c) => c.passed).length} of ${checks.length} passed`}
+                </Toggle>
+              )}
+              {st.caveats.length > 0 && (
                 <Toggle open={openKey === "cav"} onClick={() => flip("cav")}>{openKey === "cav" ? "Hide" : "Caveats"}</Toggle>
-                {openKey === "cav" && (
-                  <ul className="caveats">{st.caveats.map((c, i) => <li key={i}>{c}</li>)}</ul>
-                )}
-              </>
+              )}
+            </div>
+            {openKey === "chk" && <div className="detail"><Checks checks={checks} /></div>}
+            {openKey === "cav" && (
+              <ul className="caveats">{st.caveats.map((c, i) => <li key={i}>{c}</li>)}</ul>
             )}
           </>
         ) : (
@@ -272,7 +348,7 @@ export function ResearchChapter(p: Props) {
       </Section>
 
       {/* 6 REFLECTION */}
-      <Section no={6} id="reflection" title="Reflection" status={statusOf("reflection")}
+      <Section no={NO("reflection")} id="reflection" title="Reflection" status={statusOf("reflection")}
         badge={badgeFor("reflection", !!gateFor("strategy_update"))} stat={stat("reflection")}>
         {gateFor("strategy_update") ? (
           <GateCard key={gate!.id} gate={gate!} records={records} routing={p.routing} health={p.health} onDecided={p.onDecided} />
@@ -284,7 +360,7 @@ export function ResearchChapter(p: Props) {
             <Toggle open={openKey === "ref"} onClick={() => flip("ref")}>{openKey === "ref" ? "Hide" : "What worked, what didn't"}</Toggle>
             {openKey === "ref" && (
               <div className="detail">
-                {st.what_worked && <p><span className="sc">Worked</span>{st.what_worked}</p>}
+                {st.what_worked && <p><span className="sc">{unusable ? "Worked, in the process" : "Worked"}</span>{st.what_worked}</p>}
                 {st.what_failed && <p><span className="sc">Didn&rsquo;t</span>{st.what_failed}</p>}
               </div>
             )}
@@ -295,7 +371,7 @@ export function ResearchChapter(p: Props) {
       </Section>
 
       {/* 7 NOTEBOOK */}
-      <Section no={7} id="notebook-stage" title="Notebook" status={statusOf("notebook")}
+      <Section no={NO("notebook")} id="notebook-stage" title="Notebook" status={statusOf("notebook")}
         badge={badgeFor("notebook", false)}>
         {project.notebook_path ? (
           <>

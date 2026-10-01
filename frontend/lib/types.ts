@@ -3,6 +3,7 @@
 export type ProjectStatus = "running" | "done" | "failed" | "interrupted";
 
 export type StageKey =
+  | "triage"
   | "literature"
   | "hypothesis"
   | "experiment_design"
@@ -11,7 +12,7 @@ export type StageKey =
   | "reflection"
   | "notebook";
 
-export type GateStage = "hypothesis" | "experiment_design" | "strategy_update";
+export type GateStage = "triage" | "hypothesis" | "experiment_design" | "strategy_update";
 export type GateAction = "approve" | "reject" | "modify" | "inject";
 export type Verdict = "supports" | "refutes" | "inconclusive" | "failed";
 
@@ -21,10 +22,74 @@ export interface Source {
   content?: string;
 }
 
+export type TriageCategory = "testable" | "fiction" | "needs_wet_lab" | "not_empirical";
+
+export interface Triage {
+  category: TriageCategory;
+  label: string;
+  reason: string;
+  reframe: string;
+  question: string;
+  record_id: string;
+  decision?: "continued" | "reframed";
+}
+
+/** The pre-registration committed before anything runs (palissy/stages/verdict.py). */
+export interface Contract {
+  statistic: string;
+  test: string;
+  null: string;
+  alpha: number;
+  direction: "increase" | "decrease" | "any";
+  supports_if: string;
+  refutes_if: string;
+  positive_control: string;
+  negative_control: string;
+}
+
+export type CriticLevel = "ok" | "concern" | "blocking";
+
+export interface Critique {
+  level: CriticLevel;
+  answers: Record<string, { ok: boolean; why: string }>;
+  summary: string;
+  checked_by: string[];
+  record_ids: string[];
+  edited_after?: boolean;
+  approved_over?: "" | "concern" | "blocking";
+}
+
+export type Arm = "treatment" | "positive" | "negative";
+
+export interface ArmResult {
+  effect?: number;
+  p_value?: number;
+  n?: number;
+  successes?: number | null;
+}
+
+export interface ArmRun {
+  stdout: string;
+  stderr: string;
+  exit_code: number;
+  duration_s: number;
+  backend: string;
+  result: ArmResult | null;
+  record_id: string;
+}
+
+export interface Check {
+  name: string;
+  passed: boolean;
+  detail: string;
+}
+
 /** Snapshot of the current cycle, saved by the pipeline after every stage. */
 export interface CycleState {
   question: string;
   stage: StageKey | "done";
+  original_question?: string;
+  triage?: Triage | Record<string, never>;
   data_source: string;
   lessons_before: string[];
   lessons_after: string[];
@@ -35,9 +100,16 @@ export interface CycleState {
   hypothesis: string;
   prediction: string;
   rationale: string;
+  hypothesis_warning?: string;
   hypothesis_record_id: string;
   code: string;
   code_record_id: string;
+  contract?: Contract | Record<string, never>;
+  contract_error?: string;
+  contract_hash?: string;
+  code_hash?: string;
+  critique?: Critique | Record<string, never>;
+  arms?: Partial<Record<Arm, ArmRun>>;
   backend: string;
   stdout: string;
   stderr: string;
@@ -45,6 +117,9 @@ export interface CycleState {
   exec_record_id: string;
   repaired: boolean;
   verdict: Verdict | "";
+  verdict_reasons?: string[];
+  checks?: Check[];
+  verdict_record_id?: string;
   findings: string;
   caveats: string[];
   analysis_record_id: string;
@@ -60,7 +135,7 @@ export interface Gate {
   cycle: number;
   stage: GateStage;
   title: string;
-  proposal: Record<string, string>;
+  proposal: Record<string, unknown>;
   status: string;
   created_at: number;
 }
@@ -79,7 +154,7 @@ export interface Project {
 
 export interface ProvRecord {
   id: string;
-  kind: "model" | "search" | "extract" | "sandbox" | "decision";
+  kind: "model" | "search" | "extract" | "sandbox" | "decision" | "rule";
   stage: string;
   summary: string;
   inputs: Record<string, unknown>;

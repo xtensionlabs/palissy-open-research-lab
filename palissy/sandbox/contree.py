@@ -68,7 +68,8 @@ class ContreeExecutor:
                     raise ContreeError(f"contree {' '.join(args)} failed: {err.strip()}")
         self._ready = True
 
-    async def run(self, code: str, *, timeout: int = DEFAULT_TIMEOUT_S) -> ExecResult:
+    async def run(self, code: str, *, args: list[str] | None = None,
+                  timeout: int = DEFAULT_TIMEOUT_S) -> ExecResult:
         await self._ensure_session()
         start = timed()
         with tempfile.TemporaryDirectory(prefix="palissy_", ignore_cleanup_errors=True) as tmp:
@@ -77,7 +78,7 @@ class ContreeExecutor:
             # the host_path:instance_path attachment syntax.
             rc, out, err = await self._cli(
                 "run", "-t", str(timeout), "-F", f"experiment.py:{SCRIPT}", "--",
-                "python", SCRIPT, timeout=timeout + 60, cwd=tmp)
+                "python", SCRIPT, *(args or []), timeout=timeout + 60, cwd=tmp)
         duration = timed() - start
         # A timed-out run surfaces as 127 or as a wrapped -1 (4294967295 on Windows). Require
         # the wall clock to have reached the limit so a real "command not found" 127 is kept.

@@ -16,13 +16,14 @@ from .base import DEFAULT_TIMEOUT_S, ExecResult, timed
 class LocalExecutor:
     name = "local-fallback"
 
-    async def run(self, code: str, *, timeout: int = DEFAULT_TIMEOUT_S) -> ExecResult:
+    async def run(self, code: str, *, args: list[str] | None = None,
+                  timeout: int = DEFAULT_TIMEOUT_S) -> ExecResult:
         start = timed()
         with tempfile.TemporaryDirectory(prefix="palissy_", ignore_cleanup_errors=True) as tmp:
             script = Path(tmp) / "experiment.py"
             script.write_text(code, encoding="utf-8")
             proc = await asyncio.create_subprocess_exec(
-                sys.executable, str(script), cwd=tmp,
+                sys.executable, str(script), *(args or []), cwd=tmp,
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
             )
             try:

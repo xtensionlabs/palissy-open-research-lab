@@ -1,6 +1,7 @@
 import type { StageKey } from "./types";
 
 export const STAGES: { key: StageKey; label: string }[] = [
+  { key: "triage", label: "Question" },
   { key: "literature", label: "Literature" },
   { key: "hypothesis", label: "Hypothesis" },
   { key: "experiment_design", label: "Experiment" },
@@ -36,5 +37,13 @@ export function host(url: string): string {
   }
 }
 
+const EXTRA_LABELS: Record<string, string> = {
+  literature_summary: "Literature",
+  code_generation: "Code repair",
+  design_critic: "Design critic",
+  design_critic_escalated: "Critic, second look",
+  strategy_update: "Reflection",
+};
+
 export const stageLabel = (stage: string) =>
-  STAGES.find((s) => s.key === stage)?.label ?? stage.replace(/_/g, " ");
+  EXTRA_LABELS[stage] ?? STAGES.find((s) => s.key === stage)?.label ?? stage.replace(/_/g, " ");

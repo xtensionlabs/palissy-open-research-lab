@@ -40,16 +40,65 @@ def build_notebook(*, project_id: str, question: str, state, records: list[dict]
             f"{r['tokens_in']}/{r['tokens_out']} | {r['cost_usd']:.5f} | "
             f"{', '.join(f'`{p}`' for p in r['parents'])} |")
 
+    t = state.triage or {}
+    triage = ""
+    if t and t.get("category") != "testable":
+        triage = (f"\n\n**Question check: {t.get('label', t.get('category'))}** {t.get('reason', '')}"
+                  + (f"\n\nOriginal question: *{state.original_question}*"
+                     if state.original_question and state.original_question != question else "")
+                  + ("\n\nThe researcher chose to continue knowingly."
+                     if t.get("decision") == "continued" else ""))
+
+    contract = state.contract or {}
+    prereg = ("\n".join(f"| {k.replace('_', ' ')} | {v} |" for k, v in contract.items())
+              if contract else "")
+    prereg_md = (f"## Pre-registration\n\nCommitted before the run and frozen at approval "
+                 f"(hash `{state.contract_hash}`). The verdict below is computed from it by "
+                 f"rule, not by a model.\n\n| field | committed |\n|---|---|\n{prereg}"
+                 if contract else "## Pre-registration\n\nNone was committed "
+                 f"({state.contract_error or 'missing'}), so no verdict can be reported.")
+    crit = state.critique or {}
+    if crit:
+        answers = "\n".join(f"- {'✓' if a.get('ok') else '✗'} **{k.replace('_', ' ')}**: "
+                            f"{a.get('why', '')}" for k, a in crit.get("answers", {}).items())
+        prereg_md += (f"\n\n**Design critic: {crit.get('level')}** (checked by "
+                      f"{', '.join(crit.get('checked_by', []))}). {crit.get('summary', '')}"
+                      f"\n\n{answers}")
+        if crit.get("edited_after"):
+            prereg_md += "\n\nThe researcher edited the code after this review."
+        if crit.get("approved_over"):
+            prereg_md += (f"\n\n**Run over the critic's {crit['approved_over']}.** Read the "
+                          "verdict with that objection in mind.")
+
+    arm_rows = "\n".join(
+        f"| {a} | {o.get('exit_code')} | "
+        + (" | ".join(str((o.get("result") or {}).get(k, "")) for k in ("effect", "p_value", "n",
+                                                                       "successes")))
+        + " |" for a, o in (state.arms or {}).items())
+    checks = "\n".join(f"- {'✓' if ch['passed'] else '✗'} **{ch['name']}**: {ch['detail']}"
+                       for ch in state.checks)
+    reasons = "\n".join(f"- {r}" for r in state.verdict_reasons)
+
     cells = [
         _md(f"# {question}\n\nPalissy project `{project_id}` · total model spend "
-            f"**${total_cost:.4f}**\n\nGenerated with Nebius Token Factory (Nemotron 3) and Tavily."),
+            f"**${total_cost:.4f}** · data: **{state.data_source}**\n\nGenerated with Nebius "
+            f"Token Factory (Nemotron 3), ConTree sandboxes and Tavily.{triage}"),
         _md(f"## Literature\n\n{state.literature_summary}\n\n{sources}"),
         _md(f"## Hypothesis\n\n{state.hypothesis}\n\n**Prediction.** {state.prediction}\n\n"
-            f"**Rationale.** {state.rationale}"),
-        _md("## Experiment\n\nExecuted in: `" + state.backend + "`. Requires `numpy`."),
+            f"**Rationale.** {state.rationale}"
+            + (f"\n\n**Phrasing warning.** {state.hypothesis_warning}"
+               if state.hypothesis_warning else "")),
+        _md(prereg_md),
+        _md("## Experiment\n\nExecuted in: `" + state.backend + "`. Requires `numpy`. The script "
+            "runs one arm per call: `python experiment.py treatment|positive|negative`. The "
+            "output below is from all three arms."
+            + (" The code was repaired after a failed run." if state.repaired else "")),
         _code(state.code, state.stdout, state.stderr),
-        _md(f"## Analysis\n\n**Verdict: {state.verdict}**\n\n{state.findings}\n\n"
-            + "\n".join(f"- {c}" for c in state.caveats)),
+        _md("## Controls and checks\n\n| arm | exit | effect | p | n | successes |\n"
+            f"|---|---|---|---|---|---|\n{arm_rows}\n\n{checks}"),
+        _md(f"## Analysis\n\n**Verdict: {state.verdict}**\n\n"
+            + (f"Why it can't be reported as a result:\n{reasons}\n\n" if reasons else "")
+            + f"{state.findings}\n\n" + "\n".join(f"- {c}" for c in state.caveats)),
         _md(f"## Reflection\n\n**What worked.** {state.what_worked}\n\n"
             f"**What failed.** {state.what_failed}\n\n**Strategy change.** "
             f"{state.change_summary}\n\n### Lessons before\n{lessons_before}\n\n"

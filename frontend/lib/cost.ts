@@ -61,7 +61,10 @@ export const byModel = (records: ProvRecord[]) =>
   group(records, (r) => tierOf(r.model) ?? "other", (k) => (k === "other" ? "Other" : k[0].toUpperCase() + k.slice(1)))
     .sort((a, b) => b.cost - a.cost);
 
-const STAGE_ORDER = ["literature_summary", "hypothesis", "experiment_design", "code_generation", "analysis", "reflection"];
+const STAGE_ORDER = [
+  "triage", "literature_summary", "hypothesis", "experiment_design", "design_critic",
+  "design_critic_escalated", "code_generation", "analysis", "reflection",
+];
 export const byStage = (records: ProvRecord[]) =>
-  group(records, (r) => r.stage, (k) => (k === "literature_summary" ? "Literature" : k === "code_generation" ? "Code repair" : stageLabel(k)))
+  group(records, (r) => r.stage, stageLabel)
     .sort((a, b) => STAGE_ORDER.indexOf(a.key) - STAGE_ORDER.indexOf(b.key));

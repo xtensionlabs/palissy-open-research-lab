@@ -10,7 +10,7 @@ function clip(text: string, max: number): string {
   return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), 40))}…`;
 }
 
-const KIND_LABEL = { claim: "Claim", human: "Human", model: "Model", search: "Search", sandbox: "Sandbox", source: "Source" } as const;
+const KIND_LABEL = { claim: "Claim", human: "Human", model: "Model", search: "Search", sandbox: "Sandbox", source: "Source", rule: "Rule" } as const;
 
 export function Margin({
   claim, records, open, onClose,

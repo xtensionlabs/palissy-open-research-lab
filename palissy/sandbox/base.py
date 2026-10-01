@@ -25,7 +25,8 @@ class ExecResult:
 class Executor(Protocol):
     name: str
 
-    async def run(self, code: str, *, timeout: int = DEFAULT_TIMEOUT_S) -> ExecResult: ...
+    async def run(self, code: str, *, args: list[str] | None = None,
+                  timeout: int = DEFAULT_TIMEOUT_S) -> ExecResult: ...
 
     async def fork(self, branch: str) -> None:
         """Start a variant branch from the current checkpoint."""
@@ -35,14 +36,16 @@ class Executor(Protocol):
 
 
 def log_execution(
-    log: ProvenanceLog, code: str, result: ExecResult, parents: list[str] | None = None
+    log: ProvenanceLog, code: str, result: ExecResult, parents: list[str] | None = None,
+    args: list[str] | None = None,
 ) -> ProvenanceRecord:
+    label = f" {' '.join(args)}" if args else ""
     return log.add(ProvenanceRecord(
         kind="sandbox",
         stage="execution",
-        summary=f"[{result.backend}] exit={result.exit_code}: "
+        summary=f"[{result.backend}{label}] exit={result.exit_code}: "
                 f"{(result.stdout or result.stderr)[:100]!r}",
-        inputs={"code": code},
+        inputs={"code": code, "args": args or []},
         outputs={"stdout": result.stdout, "stderr": result.stderr,
                  "exit_code": result.exit_code},
         latency_s=result.duration_s,

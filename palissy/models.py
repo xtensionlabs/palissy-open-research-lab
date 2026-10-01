@@ -25,9 +25,12 @@ class Flavor(str, Enum):
 
 # Routing policy: one place, not scattered ifs.
 STAGE_POLICY: dict[str, Flavor] = {
+    "triage": Flavor.NANO,
     "literature_summary": Flavor.NANO,
     "hypothesis": Flavor.ULTRA,
     "experiment_design": Flavor.SUPER,
+    "design_critic": Flavor.SUPER,
+    "design_critic_escalated": Flavor.ULTRA,
     "code_generation": Flavor.SUPER,
     "analysis": Flavor.SUPER,
     "reflection": Flavor.ULTRA,
@@ -36,9 +39,12 @@ STAGE_POLICY: dict[str, Flavor] = {
 
 # Why each stage gets the model it does, in plain words (shown in the UI's cost view).
 ROUTING_REASONS: dict[str, str] = {
+    "triage": "Sorting a question into testable or not is a short call, so the smallest model does it.",
     "literature_summary": "Summarising sources is light work, so the smallest model is enough.",
     "hypothesis": "Proposing a testable idea is the hardest step, so it gets the deepest model.",
     "experiment_design": "Writing runnable code needs a dependable coder, not the priciest thinker.",
+    "design_critic": "Every design gets a sceptical read before you see it; the code model can do that.",
+    "design_critic_escalated": "Only when the first critic objects does the deepest model take a second look.",
     "code_generation": "Fixing a failed script is code work, so it stays on the code model.",
     "analysis": "Reading a result against its hypothesis needs care but not heavy reasoning.",
     "reflection": "Reflection rewrites the strategy for every future run, so depth pays off.",
@@ -103,8 +109,10 @@ class ModelRouter:
     def __init__(self, settings: Settings, log: ProvenanceLog):
         self.settings = settings
         self.log = log
+        # A connection blip mid-run otherwise kills the whole project (seen 2026-09-30); the SDK
+        # backs off exponentially between attempts.
         self.client = AsyncOpenAI(
-            base_url=TOKEN_FACTORY_BASE_URL, api_key=settings.nebius_api_key
+            base_url=TOKEN_FACTORY_BASE_URL, api_key=settings.nebius_api_key, max_retries=6
         )
         self._ids: dict[Flavor, str] | None = None
 
@@ -147,7 +155,10 @@ class ModelRouter:
         )
         latency = time.perf_counter() - start
 
-        text = (resp.choices[0].message.content or "").strip()
+        message = resp.choices[0].message
+        text = (message.content or "").strip()
+        # Nemotron returns its thinking separately; keep it in provenance, not in the answer.
+        reasoning = (getattr(message, "reasoning_content", None) or "").strip()
         usage = resp.usage
         tokens_in = usage.prompt_tokens if usage else 0
         tokens_out = usage.completion_tokens if usage else 0
@@ -156,7 +167,7 @@ class ModelRouter:
             stage=stage,
             summary=text[:120].replace("\n", " "),
             inputs={"messages": messages, "temperature": temperature, "fast": fast},
-            outputs={"text": text},
+            outputs={"text": text, **({"reasoning": reasoning} if reasoning else {})},
             model=model,
             tokens_in=tokens_in,
             tokens_out=tokens_out,
