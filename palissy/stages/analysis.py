@@ -10,12 +10,15 @@ from dataclasses import dataclass, field
 from ..models import ModelRouter
 from ..provenance import ProvenanceRecord
 from .common import complete_json
+from .numbers import allowed_values, unsupported
 from .verdict import Verdict
 
 ANALYSIS_SYSTEM = (
     "You write up the result of a computational experiment for a biology researcher. The "
-    "verdict has already been computed mechanically from a pre-registered test and its "
-    "positive and negative controls; do not argue with it or restate it more strongly. "
+    "verdict has already been computed mechanically from a pre-registered test, replicated "
+    "over several seeds, with positive and negative controls; do not argue with it or restate "
+    "it more strongly. Quote only figures that appear in the results you are given, exactly "
+    "or as a percent of them; never estimate or recall other numbers. "
     "Explain in plain words what the numbers show and, if the verdict is inconclusive or "
     "failed, why the run can't answer the question. A simulation speaks only within its own "
     'assumptions. Reply with JSON only: {"findings": str (2-3 sentences), "caveats": [str]}.'
@@ -56,25 +59,52 @@ class Reflection:
     extra: dict = field(default_factory=dict)
 
 
+def arm_facts(verdict: Verdict) -> str:
+    """The run's numbers, as the analyst is allowed to quote them."""
+    names = {"treatment": "Treatment", "positive": "Positive control",
+             "negative": "Negative control"}
+    lines = []
+    for arm, t in verdict.tally.items():
+        if not t["ok"]:
+            lines.append(f"- {names[arm]}: {t['total']} runs, none readable")
+            continue
+        lines.append(f"- {names[arm]}: {t['ok']} of {t['total']} runs readable, "
+                     f"{t['hits']} hit; median effect {t['median_effect']:.4g}, "
+                     f"median p {t['median_p']:.3g}")
+    return "\n".join(lines)
+
+
+def figures_to_check(prose: str, hypothesis: str, prediction: str, contract: dict,
+                     verdict: Verdict) -> list[str]:
+    values = [float(t[k]) for t in verdict.tally.values() for k in ("median_effect", "median_p")
+              if t.get(k) is not None]
+    values += [float(t[k]) for t in verdict.tally.values() for k in ("total", "ok", "hits")]
+    allowed = allowed_values([hypothesis, prediction, json.dumps(contract),
+                              " ".join(c.detail for c in verdict.checks)], values)
+    return unsupported(prose, allowed)
+
+
 async def analyse(router: ModelRouter, hypothesis: str, prediction: str, contract: dict,
-                  arms: dict[str, dict], verdict: Verdict, parent_id: str) -> Analysis:
-    arm_text = "\n".join(
-        f"[{a}] exit={o.get('exit_code')} result={json.dumps(o.get('result'))}\n"
-        f"{(o.get('stdout') or '')[-1200:]}{(o.get('stderr') or '')[-400:]}"
-        for a, o in arms.items())
+                  verdict: Verdict, parent_id: str) -> Analysis:
     checks = "\n".join(f"- {c.name}: {'pass' if c.passed else 'FAIL'} ({c.detail})"
                        for c in verdict.checks)
     user = (f"Hypothesis: {hypothesis}\nPrediction: {prediction}\n"
             f"Pre-registration: {json.dumps(contract)}\n\nVerdict: {verdict.verdict}\n"
             f"Checks:\n{checks}\nVerdict reasons: {verdict.reasons or 'none'}\n\n"
-            f"Arms:\n{arm_text}")
+            f"Results by arm (every run used a different seed):\n{arm_facts(verdict)}")
     data, out = await complete_json(
         router, "analysis",
         [{"role": "system", "content": ANALYSIS_SYSTEM}, {"role": "user", "content": user}],
         max_tokens=3000, parents=[parent_id],
     )
+    findings = str(data.get("findings", ""))
     caveats = [str(c) for c in data.get("caveats", []) if str(c).strip()]
-    return Analysis(verdict.verdict, str(data.get("findings", "")), caveats, out.record)
+    odd = figures_to_check(findings + " " + " ".join(caveats), hypothesis, prediction,
+                           contract, verdict)
+    if odd:  # flagged, not blocked: the verdict is the rule's, only the prose is in doubt
+        caveats.insert(0, "Check these figures against the run output, they match no number "
+                          f"it produced: {', '.join(odd)}.")
+    return Analysis(verdict.verdict, findings, caveats, out.record)
 
 
 def unusable_prefix(verdict: str, reasons: list[str]) -> str:

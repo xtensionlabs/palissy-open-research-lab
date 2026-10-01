@@ -7,6 +7,19 @@ provenance table at the end links every claim back to a record id.
 import json
 from pathlib import Path
 
+from .sandbox.base import HARNESS_SOURCE
+
+
+def _g(x) -> str:
+    return "–" if x is None or x == "" else f"{float(x):.4g}"
+
+
+def _p(x) -> str:
+    """The smallest p a permutation test can report is 1/(shuffles+1); don't print it as exact."""
+    if x is None or x == "":
+        return "–"
+    return "< 0.0001" if float(x) < 1e-4 else f"{float(x):.3g}"
+
 
 def _md(text: str) -> dict:
     return {"cell_type": "markdown", "metadata": {}, "source": text.splitlines(keepends=True)}
@@ -70,11 +83,20 @@ def build_notebook(*, project_id: str, question: str, state, records: list[dict]
             prereg_md += (f"\n\n**Run over the critic's {crit['approved_over']}.** Read the "
                           "verdict with that objection in mind.")
 
-    arm_rows = "\n".join(
-        f"| {a} | {o.get('exit_code')} | "
-        + (" | ".join(str((o.get("result") or {}).get(k, "")) for k in ("effect", "p_value", "n",
-                                                                       "successes")))
-        + " |" for a, o in (state.arms or {}).items())
+    names = {"treatment": "Treatment", "positive": "Positive control",
+             "negative": "Negative control"}
+    tally_rows = "\n".join(
+        f"| {names.get(a, a)} | {t['ok']} of {t['total']} | {t['hits']} | "
+        f"{_g(t['median_effect'])} | {_p(t['median_p'])} |"
+        for a, t in (state.tally or {}).items())
+    run_rows = "\n".join(
+        f"| {b['id']} | {b['seed_offset']} | {b['status'].replace('_', ' ')}"
+        f"{' (' + b['reason'] + ')' if b['reason'] else ''} | "
+        f"{_g((b.get('result') or {}).get('effect'))} | "
+        f"{_p((b.get('result') or {}).get('p_value'))} | "
+        f"{(b.get('result') or {}).get('n', '–')} | "
+        f"{_g((b.get('result') or {}).get('successes'))} |"
+        for b in (state.branches or []))
     checks = "\n".join(f"- {'✓' if ch['passed'] else '✗'} **{ch['name']}**: {ch['detail']}"
                        for ch in state.checks)
     reasons = "\n".join(f"- {r}" for r in state.verdict_reasons)
@@ -90,12 +112,21 @@ def build_notebook(*, project_id: str, question: str, state, records: list[dict]
                if state.hypothesis_warning else "")),
         _md(prereg_md),
         _md("## Experiment\n\nExecuted in: `" + state.backend + "`. Requires `numpy`. The script "
-            "runs one arm per call: `python experiment.py treatment|positive|negative`. The "
-            "output below is from all three arms."
+            "runs one arm per call. Each of the three arms ran "
+            f"{state.replicates or 1} times as separate sandbox branches forked from one "
+            "checkpoint" + (f" (image `{state.checkpoint.get('image')}`)"
+                            if state.checkpoint.get("image") else "") + ", each with its own "
+            "seed. The output below is the first run of each arm."
             + (" The code was repaired after a failed run." if state.repaired else "")),
         _code(state.code, state.stdout, state.stderr),
-        _md("## Controls and checks\n\n| arm | exit | effect | p | n | successes |\n"
-            f"|---|---|---|---|---|---|\n{arm_rows}\n\n{checks}"),
+        _md("## Reproducing a run\n\nRun *k* of an arm shifts every integer seed in the script "
+            "by `k * 1009` through a small harness, so each run differs but replays exactly:\n\n"
+            "`PALISSY_SEED_OFFSET=<offset> python harness.py experiment.py <arm>`"),
+        _code(HARNESS_SOURCE),
+        _md("## Controls and checks\n\n| arm | readable runs | hits | median effect | "
+            f"median p |\n|---|---|---|---|---|\n{tally_rows}\n\n| run | seed offset | status | "
+            f"effect | p | n | successes |\n|---|---|---|---|---|---|---|\n{run_rows}\n\n"
+            f"{checks}"),
         _md(f"## Analysis\n\n**Verdict: {state.verdict}**\n\n"
             + (f"Why it can't be reported as a result:\n{reasons}\n\n" if reasons else "")
             + f"{state.findings}\n\n" + "\n".join(f"- {c}" for c in state.caveats)),

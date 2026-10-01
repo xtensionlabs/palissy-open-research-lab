@@ -47,6 +47,7 @@ export function PreReg({ contract, hash, error }: { contract: Contract | null; h
       <p className="prereg-line">
         Predicts <b>{{ any: "an effect", increase: "an increase", decrease: "a decrease" }[contract.direction]}</b>
         {" · "}significant below <b className="mono">p {contract.alpha}</b>
+        {contract.min_effect > 0 && <>{" · "}at least <b className="mono">{contract.min_effect}</b></>}
       </p>
       <dl>
         {ROWS.map(([k, label]) => (

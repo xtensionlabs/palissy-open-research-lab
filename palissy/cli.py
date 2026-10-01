@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import json
 import sys
 import time
 
@@ -43,15 +44,42 @@ async def run(question: str, executor_kind: str, auto: bool) -> None:
     print(f"Spend: ${store.project_cost(pid):.4f}\n\n=== Provenance ===\n{log.render()}")
 
 
+async def replay(pid: str) -> int:
+    """Re-run a finished project's recorded runs in clean sandboxes and compare the output."""
+    settings = load_settings()
+    store = Store(settings.db_path)
+    row = store.get_project(pid)
+    state = json.loads(row["state"]) if row and row["state"] else None
+    if not state or not state.get("branches"):
+        print(f"Project {pid} has no recorded runs to replay.")
+        return 1
+    kind = "local" if state.get("backend") == "local-fallback" else "contree"
+    log = ProvenanceLog(f"data/provenance_{pid}.jsonl", store=store, project_id=pid)
+    pipeline = Pipeline(router=None, literature=None, executor=make_executor(kind),
+                        gate=AutoApproveGate(), store=store, log=log)
+    out = await pipeline.replay(state)
+    for i in out["items"]:
+        print(f"  {'match   ' if i['match'] else 'DIFFERS '} {i['id']:<14} {i['actual']}")
+    print(f"{out['matched']} of {out['total']} runs reproduced in {out['duration_s']}s "
+          f"on {out['backend']} from {out['base']}")
+    return 0 if out["matched"] == out["total"] else 2
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="palissy")
-    parser.add_argument("question", help="Research question")
+    parser.add_argument("question", nargs="?", help="Research question")
+    parser.add_argument("--replay", metavar="PROJECT_ID",
+                        help="Re-run a finished project's runs in clean sandboxes and compare")
     parser.add_argument("--executor", choices=["contree", "local"], default="contree")
     parser.add_argument("-y", "--yes", action="store_true",
                         help="Auto-approve every gate (decisions are still recorded)")
     args = parser.parse_args()
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
+    if args.replay:
+        sys.exit(asyncio.run(replay(args.replay)))
+    if not args.question:
+        parser.error("give a research question, or --replay PROJECT_ID")
     asyncio.run(run(args.question, args.executor, args.yes))
 
 

@@ -1,8 +1,9 @@
-from .base import ExecResult, Executor, log_execution
+from .base import (Branch, Checkpoint, ExecResult, Executor, Job, SEED_STRIDE, log_execution,
+                   sha)
 from .contree import ContreeError, ContreeExecutor
 from .local import LocalExecutor
 
 __all__ = [
-    "ExecResult", "Executor", "log_execution",
-    "ContreeExecutor", "ContreeError", "LocalExecutor",
+    "Branch", "Checkpoint", "ExecResult", "Executor", "Job", "SEED_STRIDE", "log_execution",
+    "sha", "ContreeExecutor", "ContreeError", "LocalExecutor",
 ]

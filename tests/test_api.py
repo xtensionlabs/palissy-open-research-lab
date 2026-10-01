@@ -24,7 +24,7 @@ def factory_for(tmp_path, auto=False):
         return Pipeline(router=StubRouter(log), literature=StubLit(log),
                         executor=StubExecutor([GOOD]), store=store, log=log,
                         gate=ScriptedGate([]) if auto else gate,
-                        notebook_dir=str(tmp_path))
+                        notebook_dir=str(tmp_path), replicates=3)
     return factory
 
 
@@ -165,6 +165,10 @@ class Exploding:
     async def run(self, code, *, args=None, timeout=120):
         raise RuntimeError("503")
 
+    async def checkpoint(self, code): raise RuntimeError("503")
+    async def clean_checkpoint(self, code): raise RuntimeError("503")
+    async def run_branches(self, ckpt, jobs, **kw): raise RuntimeError("503")
+
     async def fork(self, b): raise RuntimeError("503")
     async def rollback(self, b=None): raise RuntimeError("503")
 
@@ -174,6 +178,21 @@ async def test_resilient_executor_degrades_and_labels_the_backend():
     r = await ex.run("print(1)")
     assert r.backend == "local-fallback" and ex.degraded
     await ex.fork("b")  # no raise once degraded
+
+
+async def test_resilient_executor_falls_back_for_branches_too():
+    from palissy.sandbox.base import Checkpoint, Job
+    fallback = StubExecutor([GOOD])
+    ex = ResilientExecutor(Exploding(), fallback)
+    ck = await ex.checkpoint("print(1)")  # the primary can't snapshot, so the fallback does
+    assert ex.degraded and ck.backend == "stub"
+    out = await ex.run_branches(ck, [Job("treatment", 0)])
+    assert out[0].result.backend == "stub" and fallback.waves == [(1, False)]
+    # a snapshot that came from the primary means nothing to the fallback: it is rebuilt
+    other = ResilientExecutor(Exploding(), StubExecutor([GOOD]))
+    foreign = Checkpoint(backend="contree", code="print(2)", code_hash="x", image="img")
+    out = await other.run_branches(foreign, [Job("negative", 1)])
+    assert other.degraded and other.fallback.ran == [("print(2)", "negative", 1)]
 
 
 def test_state_snapshot_tracks_stage_and_content(client):
@@ -198,6 +217,68 @@ def test_project_list_omits_heavy_state_but_detail_has_it(client):
     next_gate(client, pid)
     assert "state" not in client.get("/projects").json()[0]
     assert "state" in client.get(f"/projects/{pid}").json()
+
+
+def finish(client):
+    pid = client.post("/projects", json=Q).json()["id"]
+    g = None
+    for _ in range(3):
+        g = next_gate(client, pid, g["id"] if g else None)
+        assert decide(client, pid, g, "approve").status_code == 200
+    wait_for(lambda: client.get(f"/projects/{pid}").json()["status"] == "done")
+    return pid
+
+
+def test_replay_reruns_the_recorded_runs_and_keeps_the_result(client):
+    pid = finish(client)
+    assert client.get(f"/projects/{pid}/replay").json() is None
+    r = client.post(f"/projects/{pid}/replay")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["total"] == 9 and body["matched"] == 9 and body["base"] == "tag:stub-base"
+    assert client.get(f"/projects/{pid}/replay").json()["matched"] == 9
+    assert any(x["stage"] == "replay" for x in client.get(f"/projects/{pid}/records").json())
+    st = client.get(f"/projects/{pid}").json()["state"]
+    assert len(st["branches"]) == 9 and st["tally"]["treatment"]["hits"] == 3
+
+
+def test_replay_is_refused_while_running_or_without_runs(client):
+    pid = client.post("/projects", json=Q).json()["id"]
+    next_gate(client, pid)
+    assert client.post(f"/projects/{pid}/replay").status_code == 409  # still running
+    assert client.post("/projects/missing/replay").status_code == 404
+    assert client.get("/projects/missing/replay").status_code == 404
+
+
+def test_replay_failure_is_reported_not_hidden(tmp_path):
+    def factory(pid, store, gate, log, kind):
+        p = Pipeline(router=StubRouter(log), literature=StubLit(log),
+                     executor=StubExecutor([GOOD]), store=store, log=log,
+                     gate=ScriptedGate([]), notebook_dir=str(tmp_path), replicates=3)
+
+        async def down(*a, **k):
+            raise RuntimeError("contree unreachable")
+        if kind == "replay-check":
+            p.executor.run_branches = down
+        return p
+    store = Store(":memory:")
+    with TestClient(create_app(store, factory)) as c:
+        pid = c.post("/projects", json=Q).json()["id"]
+        wait_for(lambda: c.get(f"/projects/{pid}").json()["status"] == "done")
+        ok = c.post(f"/projects/{pid}/replay")
+        assert ok.status_code == 200
+        # a sandbox that goes away mid-replay: a 502 with the reason, and no stale result stored
+        import palissy.pipeline as pl
+        orig = pl.Pipeline.replay
+
+        async def broken(self, state):
+            raise RuntimeError("contree unreachable")
+        pl.Pipeline.replay = broken
+        try:
+            bad = c.post(f"/projects/{pid}/replay")
+        finally:
+            pl.Pipeline.replay = orig
+        assert bad.status_code == 502 and "contree unreachable" in bad.json()["detail"]
 
 
 def test_routing_endpoint_explains_every_stage(client):

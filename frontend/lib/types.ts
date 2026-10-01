@@ -41,6 +41,8 @@ export interface Contract {
   null: string;
   alpha: number;
   direction: "increase" | "decrease" | "any";
+  /** smallest |effect| that counts as support; 0 when the hypothesis names no size */
+  min_effect: number;
   supports_if: string;
   refutes_if: string;
   positive_control: string;
@@ -68,14 +70,54 @@ export interface ArmResult {
   successes?: number | null;
 }
 
-export interface ArmRun {
-  stdout: string;
-  stderr: string;
+/** One sandbox branch: a single (arm, seed) run forked from the checkpoint. */
+export interface Branch {
+  id: string; // "treatment#2"
+  arm: Arm;
+  rep: number;
+  seed_offset: number;
   exit_code: number;
   duration_s: number;
   backend: string;
   result: ArmResult | null;
+  stdout: string;
+  stderr: string;
+  stdout_sha: string;
+  op_id: string;
   record_id: string;
+  key: string;
+  /** "rolled_back" branches failed or printed no result and are left out of the verdict */
+  status: "kept" | "rolled_back";
+  reason: string;
+  /** set by the verdict rule: significant (and big enough, for the treatment) / detected / false alarm */
+  hit?: boolean;
+}
+
+export interface Tally {
+  total: number;
+  ok: number;
+  hits: number;
+  median_effect: number | null;
+  median_p: number | null;
+}
+
+export interface Checkpoint {
+  backend: string;
+  image: string;
+  base: string;
+  code_hash: string;
+}
+
+export interface Replay {
+  ts: number;
+  backend: string;
+  original_backend: string;
+  base: string;
+  code_hash: string;
+  total: number;
+  matched: number;
+  duration_s: number;
+  items: { id: string; match: boolean; expected: string; actual: string; exit_code: number; op_id: string }[];
 }
 
 export interface Check {
@@ -109,7 +151,10 @@ export interface CycleState {
   contract_hash?: string;
   code_hash?: string;
   critique?: Critique | Record<string, never>;
-  arms?: Partial<Record<Arm, ArmRun>>;
+  replicates?: number;
+  checkpoint?: Checkpoint | Record<string, never>;
+  branches?: Branch[];
+  tally?: Partial<Record<Arm, Tally>>;
   backend: string;
   stdout: string;
   stderr: string;
@@ -214,5 +259,7 @@ export interface Health {
   executor: string;
   image: string | null;
   timeout_s: number;
+  replicates?: number;
+  max_parallel?: number;
   local_fallback: boolean;
 }

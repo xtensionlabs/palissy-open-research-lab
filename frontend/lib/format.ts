@@ -14,7 +14,14 @@ export const STAGES: { key: StageKey; label: string }[] = [
 export const usd = (n: number | null | undefined, digits = 4) =>
   `$${(n ?? 0).toFixed(digits)}`;
 
-export const seconds = (n: number) => `${n < 10 ? n.toFixed(1) : Math.round(n)} s`;
+/** A permutation test can't report p below 1/(shuffles+1), so don't print the floor as exact. */
+export const pFmt = (p: number | null | undefined) =>
+  p == null ? "–" : p < 1e-4 ? "< 0.0001" : p < 0.001 ? p.toFixed(4) : p.toPrecision(2);
+
+export const effectFmt = (x: number | null | undefined) =>
+  x == null ? "–" : `${x > 0 ? "+" : x < 0 ? "−" : ""}${Math.abs(x).toPrecision(3)}`;
+
+export const seconds =(n: number) => `${n < 10 ? n.toFixed(1) : Math.round(n)} s`;
 
 export function clock(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));

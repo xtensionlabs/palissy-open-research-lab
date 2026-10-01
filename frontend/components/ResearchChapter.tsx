@@ -11,6 +11,7 @@ import { CodeBlock } from "./CodeBlock";
 import { GateCard } from "./GateCard";
 import { firstSentence } from "@/lib/text";
 import { Inline } from "./Inline";
+import { BranchTree } from "./BranchTree";
 import { Checks, CriticNote, PreReg, hasContract, hasCritique } from "./PreReg";
 
 type Status = "done" | "current" | "pending";
@@ -24,7 +25,7 @@ const RECORD_STAGES: Record<StageKey, string[]> = {
   literature: ["literature", "literature_summary"],
   hypothesis: ["hypothesis"],
   experiment_design: ["experiment_design", "design_critic", "design_critic_escalated"],
-  execution: ["execution", "code_generation"],
+  execution: ["execution", "code_generation", "checkpoint"],
   analysis: ["analysis"],
   reflection: ["reflection"],
   notebook: [],
@@ -99,7 +100,10 @@ export function ResearchChapter(p: Props) {
   const stat = (key: StageKey) => {
     const rs = records.filter((r) => RECORD_STAGES[key].includes(r.stage));
     if (!rs.length) return null;
-    const secs = rs.reduce((a, r) => a + r.latency_s, 0);
+    // Branches run in parallel, so the execution stage's time is its wall-clock span, not the sum.
+    const secs = key === "execution"
+      ? Math.max(...rs.map((r) => r.ts)) - Math.min(...rs.map((r) => r.ts - r.latency_s))
+      : rs.reduce((a, r) => a + r.latency_s, 0);
     const cost = rs.reduce((a, r) => a + r.cost_usd, 0);
     const model = [...rs].reverse().find((r) => r.kind === "model")?.model;
     const tier = modelName(model).tier;
@@ -115,7 +119,9 @@ export function ResearchChapter(p: Props) {
   const gateFor = (stage: Gate["stage"]) => (gate && gate.stage === stage ? gate : null);
   const decisionsFor = (stage: string) => decisions.filter((d) => d.stage === stage);
   const working = (key: StageKey) => statusOf(key) === "current" && !broken;
-  const sandboxRuns = records.filter((r) => r.kind === "sandbox").sort((a, b) => a.ts - b.ts);
+  const sandboxRuns = records.filter((r) => r.kind === "sandbox" && r.stage === "execution").sort((a, b) => a.ts - b.ts);
+  const branches = st.branches ?? [];
+  const rolledBack = branches.filter((b) => b.status === "rolled_back").length;
   const codeLines = st.code ? st.code.replace(/\n$/, "").split("\n").length : 0;
   const contract = hasContract(st.contract) ? st.contract : null;
   const critic = hasCritique(st.critique) ? st.critique : null;
@@ -270,9 +276,18 @@ export function ResearchChapter(p: Props) {
         {sandboxRuns.length > 0 ? (
           <>
             <p className="oneline">
-              {working("execution") ? "Running in the sandbox…" : st.exit_code === 0 ? "Finished cleanly." : `Exited with code ${st.exit_code}.`}
+              {working("execution")
+                ? (branches.length > 1 ? `Running ${branches.length} branches in parallel…` : "Running in the sandbox…")
+                : branches.length > 0
+                  ? (rolledBack > 0
+                      ? `${branches.length - rolledBack} of ${branches.length} runs counted, ${rolledBack} rolled back.`
+                      : `All ${branches.length} runs finished cleanly.`)
+                  : st.exit_code === 0 ? "Finished cleanly." : `Exited with code ${st.exit_code}.`}
               {st.backend && <span className="mono" style={{ fontSize: 13, marginLeft: 10, color: "var(--muted)" }}>{st.backend}</span>}
             </p>
+            {branches.length > 0 && (
+              <BranchTree projectId={project.id} state={st} running={project.status === "running"} onReplayed={p.onDecided} />
+            )}
             {(st.stdout || st.stderr) && (
               <>
                 <Toggle open={openKey === "out"} onClick={() => flip("out")}>{openKey === "out" ? "Hide output" : "Output"}</Toggle>
@@ -284,7 +299,7 @@ export function ResearchChapter(p: Props) {
                 )}
               </>
             )}
-            <ol className="runs" aria-label="Sandbox runs">
+            {branches.length === 0 && <ol className="runs" aria-label="Sandbox runs">
               {sandboxRuns.map((r, i) => {
                 const ok = r.outputs.exit_code === 0;
                 const arm = armOf(r);
@@ -295,7 +310,7 @@ export function ResearchChapter(p: Props) {
                   </li>
                 );
               })}
-            </ol>
+            </ol>}
           </>
         ) : working("execution") ? (
           <p className="oneline pend">Starting the sandbox<span className="cursor" /></p>

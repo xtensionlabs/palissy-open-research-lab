@@ -56,6 +56,15 @@ Be specific: name the exact tool or model.
 - A transient `APIConnectionError` killed one run mid-design. The `openai` SDK retries twice by default;
   raised to 6.
 
+- 2026-10-01, Super and Ultra as reviewers, in context: I added a critic question, "is the treatment
+  effect typed in rather than produced by the model?", after a run whose script hard-coded the
+  treatment mean (`comp_loc = 0.78`). I have only seen it pass so far (Super returned ok for an
+  inhibition-model design, run 86fe37ec); I have not yet seen it catch a typed-in design live.
+  Super's analyst misread a number in an earlier run ("well under 200%" for a 320% effect), so figures
+  in its prose are now checked against the run output in code and flagged, not trusted. Super also
+  wrote a positive control as `baseline - 0.5`, a noiseless shift that any test detects; the controls
+  are only as informative as the prompt makes them.
+
 ## Base vs Fast flavors
 
 ## ConTree Sandboxes (fork / rollback under load)
@@ -94,3 +103,23 @@ Be specific: name the exact tool or model.
   - `session show` / `session` with `-o json` gave me `current_image` (a UUID) directly, which is what
     makes "run from this checkpoint" scriptable. That's a good, underdocumented affordance.
   - `session delete -y` accepts several keys at once, which made cleanup easy.
+- 2026-10-01, parallel branches and replay in the real pipeline (project 86fe37ec, 15 branches):
+  - `-o json run` returns the operation `uuid`, `status`, `duration`, `exit_code`, stdout/stderr and
+    `metadata.result.state.timed_out`. That last field replaces my exit-127 / wrapped -1 timeout
+    guesswork from 09-30, and the uuid gives provenance a real sandbox operation id. I did not find
+    CPU, memory or IO metrics in the CLI's JSON, which the product page led me to expect.
+  - Forking 15 throwaway branches (`run --use <checkpoint-uuid> -D`, one `-S` session key each) at
+    3 in flight took about 33 s end to end, roughly 4.5 s per branch including VM start. Nothing
+    leaked: branch sessions are removed with `session delete -f k1 k2 ...` and the session count
+    went back to what it was.
+  - Replaying all 15 from the clean base image (files re-attached with `-F` on every run) took 50 s,
+    about 40% slower per branch than forking from the snapshot, so the checkpoint does save real time.
+    All 15 outputs matched byte for byte, including seeds shifted by a harness (offset 1009 gave the
+    same draw locally and in the sandbox).
+  - The concurrency ceiling I hit was my laptop, not ConTree: each branch is a `contree` CLI process
+    (a Python exe), and with under 1 GB of RAM free I held it to 3 to 4 at once. The Beta limit of 50
+    operations was never close. A thin HTTP client in the docs would let a service fan out without
+    one OS process per operation.
+  - A run that fails after the command starts and one that never started are distinguishable only by
+    whether the JSON has an `exit_code`; I treat "no JSON" as an infrastructure failure and let the
+    fallback executor decide, which kept a transient CLI error from being scored as a failed experiment.

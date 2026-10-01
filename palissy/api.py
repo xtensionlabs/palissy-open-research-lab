@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 from .config import load_settings
 from .db import Store
 from .gates import ApiGate, Decision
-from .pipeline import LESSONS_KEY, Pipeline
+from .pipeline import DEFAULT_CONCURRENCY, DEFAULT_REPLICATES, LESSONS_KEY, Pipeline
 from .provenance import ProvenanceLog
 
 # (project_id, store, gate, log, executor_kind) -> Pipeline
@@ -63,6 +63,7 @@ def create_app(store: Store | None = None, factory: PipelineFactory | None = Non
     store = store or Store(load_settings().db_path)
     tasks: dict[str, asyncio.Task] = {}
     gates: dict[str, asyncio.Future] = {}
+    replaying: set[str] = set()
     state = {"factory": factory}
     executor_default = default_executor or os.environ.get("PALISSY_EXECUTOR", "contree")
 
@@ -165,6 +166,38 @@ def create_app(store: Store | None = None, factory: PipelineFactory | None = Non
             raise HTTPException(404, "notebook not ready")
         return json.loads(Path(path).read_text(encoding="utf-8"))
 
+    @app.get("/projects/{pid}/replay")
+    async def last_replay(pid: str) -> dict | None:
+        project_or_404(pid)
+        return store.kv_get(f"replay:{pid}")
+
+    @app.post("/projects/{pid}/replay")
+    async def replay(pid: str) -> dict:
+        """Re-run every recorded branch in a clean sandbox and compare the output hashes."""
+        row = project_or_404(pid)
+        if row["status"] == "running":
+            raise HTTPException(409, "wait for the run to finish before replaying it")
+        state = json.loads(row["state"]) if row.get("state") else None
+        if not state or not state.get("branches"):
+            raise HTTPException(409, "this project has no recorded runs to replay")
+        if pid in replaying:
+            raise HTTPException(409, "a replay of this project is already running")
+        # Replay on the backend that produced the result, so a local-fallback run isn't
+        # "verified" by a sandbox it never used.
+        kind = "local" if state.get("backend") == "local-fallback" else "contree"
+        log = ProvenanceLog(f"data/provenance_{pid}.jsonl", store=store, project_id=pid)
+        gate = ApiGate(store, pid, gates, get_cycle=lambda: log.cycle)
+        replaying.add(pid)
+        try:
+            pipeline = get_factory()(pid, store, gate, log, kind)
+            return await pipeline.replay(state)
+        except HTTPException:
+            raise
+        except Exception as exc:  # sandbox down, CLI missing, ...: say so, don't hide it
+            raise HTTPException(502, f"replay failed: {type(exc).__name__}: {exc}"[:300])
+        finally:
+            replaying.discard(pid)
+
     @app.get("/projects/{pid}/events")
     async def events(pid: str) -> StreamingResponse:
         """Server-sent events: new provenance records, gate changes, status, running cost."""
@@ -223,6 +256,9 @@ def create_app(store: Store | None = None, factory: PipelineFactory | None = Non
         return {"ok": True, "running": len(tasks), "executor": executor_default,
                 "image": BASE_TAG if executor_default == "contree" else None,
                 "timeout_s": DEFAULT_TIMEOUT_S,
+                "replicates": int(os.environ.get("PALISSY_REPLICATES", DEFAULT_REPLICATES)),
+                "max_parallel": int(os.environ.get("PALISSY_MAX_PARALLEL",
+                                                   DEFAULT_CONCURRENCY)),
                 "local_fallback": os.environ.get("PALISSY_ALLOW_LOCAL_FALLBACK") == "1"}
 
     return app

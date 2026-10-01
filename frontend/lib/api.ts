@@ -6,6 +6,7 @@ import type {
   Notebook,
   Project,
   ProvRecord,
+  Replay,
   Routing,
 } from "./types";
 
@@ -62,5 +63,7 @@ export const api = {
       `/projects/${projectId}/gates/${gateId}/decision`,
       json({ action, payload: payload ?? null }),
     ),
+  replay: (id: string) => request<Replay | null>(`/projects/${id}/replay`),
+  runReplay: (id: string) => request<Replay>(`/projects/${id}/replay`, { method: "POST" }),
   eventsUrl: (id: string) => `${API_URL}/projects/${id}/events`,
 };

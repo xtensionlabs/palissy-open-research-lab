@@ -19,6 +19,11 @@ QUESTIONS = {
                            "expected counts vs any threshold).",
     "null_is_real": "Is the null a real null, derived from the baseline model, rather than an "
                     "invented probability or a number chosen by hand?",
+    "effect_not_typed_in": "Does the TREATMENT effect emerge from a mechanism in the model, "
+                           "or is it simply typed in as the size the hypothesis claims (a "
+                           "group mean or rate set to the claimed value)? A typed-in "
+                           "treatment effect makes the run a power calculation, not a test of "
+                           "the biology. Only the positive arm may plant an effect.",
     "test_matches_claim": "Does the test do what the pre-registration says (e.g. a "
                           "'permutation test' really shuffles labels between two groups), and "
                           "do the positive and negative arms really plant and exclude an "

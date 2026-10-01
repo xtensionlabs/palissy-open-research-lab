@@ -10,6 +10,8 @@ not by a model.
 """
 
 import hashlib
+import os
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Awaitable, Callable
@@ -20,16 +22,19 @@ from .literature import Literature
 from .models import ModelRouter
 from .notebook import build_notebook, write_notebook
 from .provenance import ProvenanceLog, ProvenanceRecord
-from .sandbox import Executor, log_execution
+from .sandbox import Executor, Job, log_execution, sha
 from .stages.analysis import analyse, reflect
 from .stages.critic import Critique, critique
 from .stages.hypothesis import (Design, Hypothesis, design_experiment, propose_hypothesis,
                                 repair_experiment)
 from .stages.triage import triage
-from .stages.verdict import ARMS, Check, Contract, Verdict, decide, parse_result
+from .stages.verdict import (ARMS, Check, Contract, Verdict, decide, is_hit,
+                             parse_result)
 
 MAX_ATTEMPTS = 3
 MAX_REPAIRS = 2
+DEFAULT_REPLICATES = 5  # seeds per arm; 3 arms x 5 = 15 branches forked from one checkpoint
+DEFAULT_CONCURRENCY = 4  # branches in flight at once (the Beta limit is 50 operations)
 LESSONS_KEY = "strategy_lessons"
 
 
@@ -63,7 +68,10 @@ class CycleState:
     code_hash: str = ""  # of the approved code; a crash repair changes the code, not this
     critique: dict = field(default_factory=dict)
     backend: str = ""
-    arms: dict = field(default_factory=dict)  # arm -> stdout/stderr/exit_code/result/record_id
+    replicates: int = 0
+    checkpoint: dict = field(default_factory=dict)  # sandbox snapshot every branch forked from
+    branches: list = field(default_factory=list)  # one dict per (arm, seed) run, see _branch_row
+    tally: dict = field(default_factory=dict)  # arm -> hits / runs / medians, from decide()
     stdout: str = ""
     stderr: str = ""
     exit_code: int = -1
@@ -91,26 +99,62 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
-def arm_problem(arms: dict[str, dict]) -> str | None:
-    """What a repair pass should fix, or None if every arm ran and reported a result."""
+def branch_row(job: Job, r, record_id: str, key: str = "") -> dict:
+    """One sandbox branch as stored in the project state (and shown in the UI)."""
+    result = parse_result(r.stdout) if r.ok else None
+    if not r.ok:
+        status, reason = "rolled_back", ("timed out" if r.exit_code == 124
+                                         else f"exit {r.exit_code}")
+    elif result is None:
+        status, reason = "rolled_back", "no RESULT_JSON line"
+    else:
+        status, reason = "kept", ""
+    return {"id": job.label, "arm": job.arm, "rep": job.rep, "seed_offset": job.seed_offset,
+            "exit_code": r.exit_code, "duration_s": r.duration_s, "backend": r.backend,
+            "result": result, "stdout": r.stdout, "stderr": r.stderr,
+            "stdout_sha": sha(r.stdout), "op_id": r.op_id, "record_id": record_id, "key": key,
+            "status": status, "reason": reason}
+
+
+def branch_problem(branches: list[dict]) -> str | None:
+    """What a repair pass should fix, or None if every arm has at least one usable run."""
     for arm in ARMS:
-        o = arms.get(arm)
-        if o is None:
-            continue  # not reached because an earlier arm failed
-        if o["exit_code"] != 0:
-            return f"[{arm} arm] exit {o['exit_code']}\n{o['stderr'] or o['stdout']}"
-        if o["result"] is None:
-            return (f"[{arm} arm] finished but printed no valid RESULT_JSON line as its last "
-                    f"line. Output tail:\n{o['stdout'][-800:]}")
+        rows = [b for b in branches if b["arm"] == arm]
+        if rows and any(b["status"] == "kept" for b in rows):
+            continue
+        bad = rows[0] if rows else next((b for b in branches if b["status"] != "kept"), None)
+        if bad is None:
+            continue
+        if bad["exit_code"] != 0:
+            return f"[{bad['id']}] exit {bad['exit_code']}\n{bad['stderr'] or bad['stdout']}"
+        return (f"[{bad['id']}] finished but printed no valid RESULT_JSON line as its last "
+                f"line. Output tail:\n{bad['stdout'][-800:]}")
     return None
+
+
+def _tally_line(tally: dict) -> str:
+    return "; ".join(f"{a} {t['hits']}/{t['ok']} of {t['total']}"
+                     for a, t in tally.items()) or "none"
+
+
+def verdict_input(branches: list[dict]) -> dict[str, list[dict]]:
+    arms: dict[str, list[dict]] = {a: [] for a in ARMS}
+    for b in branches:
+        arms[b["arm"]].append({"exit_code": b["exit_code"], "result": b["result"]})
+    return arms
 
 
 class Pipeline:
     def __init__(self, *, router: ModelRouter, literature: Literature, executor: Executor,
-                 gate: Gate, store: Store, log: ProvenanceLog, notebook_dir: str = "notebooks"):
+                 gate: Gate, store: Store, log: ProvenanceLog, notebook_dir: str = "notebooks",
+                 replicates: int | None = None, concurrency: int | None = None):
         self.router, self.lit, self.executor = router, literature, executor
         self.gate, self.store, self.log = gate, store, log
         self.notebook_dir = notebook_dir
+        self.replicates = max(1, replicates or int(
+            os.environ.get("PALISSY_REPLICATES", DEFAULT_REPLICATES)))
+        self.concurrency = max(1, concurrency or int(
+            os.environ.get("PALISSY_MAX_PARALLEL", DEFAULT_CONCURRENCY)))
 
     def _save(self, s: CycleState) -> None:
         self.store.save_state(self.log.project_id, asdict(s))
@@ -246,45 +290,72 @@ class Pipeline:
                 outputs={"contract_hash": s.contract_hash, "code_hash": s.code_hash},
                 parents=[d.record.id]))
 
-    async def _run_arms(self, code: str, parent: str) -> dict[str, dict]:
-        arms: dict[str, dict] = {}
-        for arm in ARMS:
-            r = await self.executor.run(code, args=[arm])
-            rec = log_execution(self.log, code, r, parents=[parent], args=[arm])
-            arms[arm] = {"stdout": r.stdout, "stderr": r.stderr, "exit_code": r.exit_code,
-                         "duration_s": r.duration_s, "backend": r.backend,
-                         "result": parse_result(r.stdout), "record_id": rec.id}
-            if not r.ok:
-                break  # a broken script fails every arm; repair before spending more runs
-        return arms
+    def _log_branches(self, s: CycleState, code: str, branches, parent: str) -> list[dict]:
+        rows = []
+        for b in branches:
+            rec = log_execution(
+                self.log, code, b.result, parents=[parent], args=[b.job.arm],
+                meta={"rep": b.job.rep, "seed_offset": b.job.seed_offset, "branch": b.key,
+                      "checkpoint": s.checkpoint.get("image", "")})
+            rows.append(branch_row(b.job, b.result, rec.id, b.key))
+        return rows
 
     async def execution_stage(self, s: CycleState) -> None:
+        """Fork every (arm, seed) run from one checkpoint and run them in parallel.
+
+        A first run goes alone, so a broken script fails once rather than fifteen times and is
+        repaired before the fan-out. Branches are disposable: one that fails is rolled back
+        (dropped, nothing to undo) and the verdict is read from the survivors.
+        """
         parent = s.code_record_id
+        s.replicates = self.replicates
+        jobs = [Job(a, r) for r in range(self.replicates) for a in ARMS]
         for attempt in range(MAX_REPAIRS + 1):  # bounded repair passes
-            arms = await self._run_arms(s.code, parent)
-            s.arms = arms
-            s.backend = next(iter(arms.values()))["backend"]
-            s.stdout = "\n".join(f"── {a} ──\n{o['stdout'].rstrip()}" for a, o in arms.items())
-            s.stderr = "\n".join(f"── {a} ──\n{o['stderr'].rstrip()}"
-                                 for a, o in arms.items() if o["stderr"].strip())
-            s.exit_code = next((o["exit_code"] for o in arms.values() if o["exit_code"]), 0)
-            s.exec_record_id = list(arms.values())[-1]["record_id"]
-            self._save(s)
-            problem = arm_problem(arms)
+            started = time.perf_counter()
+            ckpt = await self.executor.checkpoint(s.code)
+            s.checkpoint = {"backend": ckpt.backend, "image": ckpt.image, "base": ckpt.base,
+                            "code_hash": ckpt.code_hash}
+            ck_rec = self.log.add(ProvenanceRecord(
+                kind="sandbox", stage="checkpoint",
+                summary=f"[{ckpt.backend}] checkpoint {ckpt.image[:8] or 'none'}",
+                inputs={"code_hash": ckpt.code_hash, "base": ckpt.base},
+                outputs={"image": ckpt.image, "base": ckpt.base, "backend": ckpt.backend},
+                latency_s=time.perf_counter() - started, parents=[parent]))
+            rows = self._log_branches(
+                s, s.code, await self.executor.run_branches(ckpt, jobs[:1], concurrency=1),
+                ck_rec.id)
+            self._record_runs(s, rows)
+            if rows[0]["status"] == "kept" and len(jobs) > 1:
+                rows += self._log_branches(
+                    s, s.code, await self.executor.run_branches(
+                        ckpt, jobs[1:], concurrency=self.concurrency), ck_rec.id)
+                self._record_runs(s, rows)
+            problem = branch_problem(rows)
             if problem is None or attempt == MAX_REPAIRS:
                 return
             code, repair_rec = await repair_experiment(self.router, s.code, problem,
                                                        s.exec_record_id)
             s.code, s.repaired, parent = code, True, repair_rec.id
 
+    def _record_runs(self, s: CycleState, rows: list[dict]) -> None:
+        s.branches = rows
+        s.backend = rows[0]["backend"]
+        first = {b["arm"]: b for b in rows if b["rep"] == 0}
+        s.stdout = "\n".join(f"── {a} ──\n{b['stdout'].rstrip()}" for a, b in first.items())
+        s.stderr = "\n".join(f"── {b['id']} ──\n{b['stderr'].rstrip()}"
+                             for b in rows if b["stderr"].strip())
+        s.exit_code = next((b["exit_code"] for b in rows if b["exit_code"]), 0)
+        s.exec_record_id = rows[-1]["record_id"]
+        self._save(s)
+
     def _verdict(self, s: CycleState) -> Verdict:
         contract = Contract.parse(s.contract) if s.contract else None
-        v = decide(contract, s.arms)
+        v = decide(contract, verdict_input(s.branches))
         if contract and contract.fingerprint(s.hypothesis) != s.contract_hash:
             v = Verdict("inconclusive",
                         ["The pre-registration changed after you approved it."],
                         v.checks + [Check("Pre-registration intact", False,
-                                          "Hash no longer matches the approved one.")])
+                                          "Hash no longer matches the approved one.")], v.tally)
         return v
 
     async def analysis_stage(self, s: CycleState) -> None:
@@ -293,15 +364,60 @@ class Pipeline:
             kind="rule", stage="analysis",
             summary=f"verdict {v.verdict}, computed from the pre-registration",
             inputs={"contract": s.contract, "contract_hash": s.contract_hash,
-                    "results": {a: o.get("result") for a, o in s.arms.items()}},
-            outputs={"verdict": v.verdict, "reasons": v.reasons,
+                    "results": {b["id"]: b["result"] for b in s.branches}},
+            outputs={"verdict": v.verdict, "reasons": v.reasons, "tally": v.tally,
                      "checks": [asdict(c) for c in v.checks]},
-            parents=[o["record_id"] for o in s.arms.values()]))
-        s.verdict, s.verdict_reasons = v.verdict, v.reasons
+            parents=[b["record_id"] for b in s.branches]))
+        contract = Contract.parse(s.contract) if s.contract else None
+        for b in s.branches:  # mark each run with the same rule the tally used
+            b["hit"] = bool(contract and b["status"] == "kept"
+                            and is_hit(b["arm"], b["result"], contract))
+        s.verdict, s.verdict_reasons, s.tally = v.verdict, v.reasons, v.tally
         s.checks, s.verdict_record_id = [asdict(c) for c in v.checks], rec.id
         self._save(s)
-        a = await analyse(self.router, s.hypothesis, s.prediction, s.contract, s.arms, v, rec.id)
+        a = await analyse(self.router, s.hypothesis, s.prediction, s.contract, v, rec.id)
         s.findings, s.caveats, s.analysis_record_id = a.findings, a.caveats, a.record.id
+
+    # --- replay -------------------------------------------------------------------------
+
+    async def replay(self, state: dict) -> dict:
+        """Re-run every recorded branch from the clean base image and compare the output.
+
+        Each branch gets the stored script and the same seed offset, in a fresh sandbox that
+        shares nothing with the original run, so a match shows the result doesn't depend on
+        leftover state. Costs no model tokens.
+        """
+        branches = state.get("branches") or []
+        if not branches or not state.get("code"):
+            raise ValueError("this project has no recorded runs to replay")
+        started = time.perf_counter()
+        ckpt = await self.executor.clean_checkpoint(state["code"])
+        jobs = [Job(b["arm"], b["rep"]) for b in branches]
+        try:
+            again = await self.executor.run_branches(
+                ckpt, jobs, concurrency=self.concurrency, clean=True)
+        finally:
+            await self._close_executor()
+        items = []
+        for b, a in zip(branches, again):
+            same_out = sha(a.result.stdout) == b["stdout_sha"]
+            same_exit = a.result.exit_code == b["exit_code"]
+            items.append({"id": b["id"], "match": same_out and same_exit,
+                          "expected": b["stdout_sha"], "actual": sha(a.result.stdout),
+                          "exit_code": a.result.exit_code, "op_id": a.result.op_id})
+        out = {"ts": time.time(), "backend": again[0].result.backend if again else "",
+               "base": ckpt.base, "code_hash": ckpt.code_hash, "total": len(items),
+               "matched": sum(i["match"] for i in items), "items": items,
+               "duration_s": round(time.perf_counter() - started, 1),
+               "original_backend": state.get("backend", "")}
+        self.log.add(ProvenanceRecord(
+            kind="rule", stage="replay",
+            summary=f"replayed {out['total']} runs in clean sandboxes: {out['matched']} matched",
+            inputs={"code_hash": ckpt.code_hash, "base": ckpt.base},
+            outputs={k: out[k] for k in ("total", "matched", "items", "backend")},
+            latency_s=out["duration_s"], parents=[b["record_id"] for b in branches]))
+        self.store.kv_set(f"replay:{self.log.project_id}", out)
+        return out
 
     async def reflection_stage(self, s: CycleState) -> None:
         failed_checks = [f"{c['name']}: {c['detail']}" for c in s.checks if not c["passed"]]
@@ -313,6 +429,7 @@ class Pipeline:
                       else "") + "\n"
                    f"Code repaired after failure: {s.repaired}\nExit code: {s.exit_code}\n"
                    f"Verdict: {s.verdict}\nVerdict reasons: {s.verdict_reasons or 'none'}\n"
+                   f"Runs by arm (hits / readable runs of total): {_tally_line(s.tally)}\n"
                    f"Failed checks: {failed_checks or 'none'}\nFindings: {s.findings}\n"
                    f"Caveats: {s.caveats}\nResearcher input: {s.human_notes}")
 
@@ -366,8 +483,18 @@ class Pipeline:
         except Exception:
             self.store.update_project(self.log.project_id, status="failed")
             raise
+        finally:
+            await self._close_executor()
         self.store.update_project(self.log.project_id, status="done")
         return s
+
+    async def _close_executor(self) -> None:
+        close = getattr(self.executor, "close", None)
+        if close:
+            try:
+                await close()
+            except Exception:  # cleanup must never turn a finished run into a failed one
+                pass
 
     async def _notebook_async(self, s: CycleState) -> None:
         self.notebook_stage(s)

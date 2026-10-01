@@ -52,6 +52,15 @@ function describe(r: ProvRecord): ChainItem {
       recordId: r.id,
     };
   }
+  if (r.kind === "rule" && r.stage === "replay") {
+    return {
+      key: r.id,
+      kind: "rule",
+      title: `Replayed ${String(r.outputs.total ?? "")} runs: ${String(r.outputs.matched ?? "")} matched`,
+      lines: ["Each run started again from the clean base image"],
+      recordId: r.id,
+    };
+  }
   if (r.kind === "rule") {
     const verdict = r.outputs.verdict as string | undefined;
     return {
@@ -64,9 +73,20 @@ function describe(r: ProvRecord): ChainItem {
       recordId: r.id,
     };
   }
+  if (r.kind === "sandbox" && r.stage === "checkpoint") {
+    return {
+      key: r.id,
+      kind: "sandbox",
+      title: "Sandbox checkpoint",
+      lines: [`image ${String(r.outputs.image ?? "").slice(0, 8) || "none"} · every run forks from it`],
+      recordId: r.id,
+    };
+  }
   if (r.kind === "sandbox") {
     const code = r.outputs.exit_code as number | undefined;
-    const arm = (r.inputs.args as string[] | undefined)?.[0];
+    const armName = (r.inputs.args as string[] | undefined)?.[0];
+    const rep = r.inputs.rep as number | undefined;
+    const arm = armName && rep !== undefined ? `${armName} #${rep + 1}` : armName;
     return {
       key: r.id,
       kind: "sandbox",

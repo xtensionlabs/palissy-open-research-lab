@@ -54,7 +54,7 @@ export function NotebookChapter({ project, state }: { project: Project; state: C
                 <div className="cell" key={i}>
                   <span className="io">In</span>
                   <div>
-                    <CodeBlock code={src} label="Experiment code" />
+                    <CodeBlock code={src} label={src.startsWith('"""Palissy harness') ? "Seed harness" : "Experiment code"} />
                     {out && <pre className="runlog out">{out}</pre>}
                   </div>
                 </div>

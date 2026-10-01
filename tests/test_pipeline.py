@@ -9,7 +9,7 @@ from palissy.gates import Decision, ScriptedGate
 from palissy.models import Completion
 from palissy.pipeline import LESSONS_KEY, Pipeline, PipelineAborted
 from palissy.provenance import ProvenanceLog, ProvenanceRecord
-from palissy.sandbox.base import ExecResult
+from palissy.sandbox.base import Branch, Checkpoint, ExecResult, sha
 
 CONTRACT = {
     "statistic": "difference in mean fitness", "test": "permutation test, 1000 shuffles",
@@ -17,13 +17,15 @@ CONTRACT = {
     "supports_if": "p < 0.05 with a positive effect", "refutes_if": "p >= 0.05",
     "positive_control": "fitness +0.5 planted", "negative_control": "second baseline draw",
 }
+QUESTIONS = ("knowable_in_advance", "null_is_real", "effect_not_typed_in",
+             "test_matches_claim")
+REPS = 3  # seeds per arm in these tests: 9 branches, quorum of 2 per arm
 
 
 def critic_json(level="ok"):
     ok = level == "ok"
     return json.dumps({"level": level, "summary": "S", "answers": {
-        k: {"ok": ok, "why": "because"} for k in
-        ("knowable_in_advance", "null_is_real", "test_matches_claim")}})
+        k: {"ok": ok, "why": "because"} for k in QUESTIONS}})
 
 
 class StubRouter:
@@ -78,10 +80,13 @@ def result_line(arm, effect, p, n=200, successes=None):
 
 
 def arms(**by_arm):
-    """An executor response per arm: arms(treatment=(0.3, 0.01), ...)."""
-    def run(arm):
-        return ExecResult(result_line(arm, *by_arm[arm]), "", 0, 0.1, "stub")
-    return run
+    """A response per branch: arms(treatment=(effect, p[, n, successes]), ...). A value may be
+    a list of such tuples, one per replicate (cycled)."""
+    def respond(job):
+        v = by_arm[job.arm]
+        spec = v[job.rep % len(v)] if isinstance(v, list) else v
+        return ExecResult(result_line(job.arm, *spec), "", 0, 0.1, "stub", op_id=f"op-{job.label}")
+    return respond
 
 
 GOOD = arms(treatment=(0.3, 0.01), positive=(0.5, 0.001), negative=(0.02, 0.6))
@@ -89,18 +94,36 @@ FAIL = ExecResult("", "Traceback: boom", 1, 0.1, "stub")
 
 
 class StubExecutor:
-    """Each call takes the next item (an ExecResult or arm -> ExecResult); the last repeats."""
+    """Each branch takes the next item (an ExecResult or job -> ExecResult); the last repeats."""
 
     name = "stub"
 
     def __init__(self, results):
-        self.results, self.ran = list(results), []
+        self.results, self.ran, self.waves, self.checkpoints = list(results), [], [], []
+
+    def _next(self, job):
+        item = self.results.pop(0) if len(self.results) > 1 else self.results[0]
+        return item(job) if callable(item) else item
+
+    async def checkpoint(self, code):
+        self.checkpoints.append(code)
+        return Checkpoint("stub", code, sha(code), image=f"img-{sha(code)[:6]}",
+                          base="tag:stub-base")
+
+    async def clean_checkpoint(self, code):
+        return Checkpoint("stub", code, sha(code), base="tag:stub-base")
+
+    async def run_branches(self, ckpt, jobs, *, concurrency=4, timeout=120, clean=False):
+        self.waves.append((len(jobs), clean))
+        out = []
+        for j in jobs:
+            self.ran.append((ckpt.code, j.arm, j.rep))
+            out.append(Branch(j, self._next(j), key=f"b{len(self.ran)}"))
+        return out
 
     async def run(self, code, *, args=None, timeout=120):
-        arm = (args or ["treatment"])[0]
-        self.ran.append((code, arm))
-        item = self.results.pop(0) if len(self.results) > 1 else self.results[0]
-        return item(arm) if callable(item) else item
+        self.ran.append((code, (args or ["treatment"])[0], 0))
+        return self.results[0]
 
     async def fork(self, branch): ...
     async def rollback(self, branch=None): ...
@@ -114,7 +137,7 @@ def make(tmp_path, decisions, results, code="print(1)", **router_kw):
     ex = StubExecutor(results)
     router = StubRouter(log, code, **router_kw)
     p = Pipeline(router=router, literature=StubLit(log), executor=ex, gate=gate,
-                 store=store, log=log, notebook_dir=str(tmp_path))
+                 store=store, log=log, notebook_dir=str(tmp_path), replicates=REPS)
     return p, store, pid, gate, ex, router
 
 
@@ -131,17 +154,31 @@ async def test_full_run_records_provenance_decisions_and_notebook(tmp_path):
     assert nb["nbformat"] == 4 and any(c["cell_type"] == "code" for c in nb["cells"])
     text = "".join("".join(c["source"]) for c in nb["cells"])
     assert "Pre-registration" in text and s.contract_hash in text
+    assert "harness.py" in text and "treatment#1" in text and "Positive control" in text
     assert store.get_project(pid)["status"] == "done"
 
 
-async def test_every_arm_runs_and_the_verdict_is_computed_not_asked(tmp_path):
+async def test_arms_fork_from_one_checkpoint_and_the_verdict_is_computed_not_asked(tmp_path):
     p, store, pid, _, ex, router = make(tmp_path, [], [GOOD])
     s = await p.run("q")
-    assert [a for _, a in ex.ran] == ["treatment", "positive", "negative"]
-    assert set(s.arms) == {"treatment", "positive", "negative"}
-    rule = [r for r in store.records(pid) if r["kind"] == "rule" and r["stage"] == "analysis"][0]
+    assert ex.waves == [(1, False), (8, False)]  # one run alone, then the other eight in parallel
+    assert ex.ran[0][1:] == ("treatment", 0) and len(ex.ran) == 9
+    assert len(ex.checkpoints) == 1 and s.checkpoint["image"].startswith("img-")
+    assert len(s.branches) == 9 and {b["status"] for b in s.branches} == {"kept"}
+    assert [b["seed_offset"] for b in s.branches if b["arm"] == "negative"] == [0, 1009, 2018]
+    recs = store.records(pid)
+    ck = [r for r in recs if r["stage"] == "checkpoint"][0]
+    runs = [r for r in recs if r["kind"] == "sandbox" and r["stage"] == "execution"]
+    assert len(runs) == 9 and all(ck["id"] in r["parents"] for r in runs)
+    assert runs[1]["inputs"]["seed_offset"] == 0 and runs[3]["inputs"]["rep"] == 1
+    rule = [r for r in recs if r["kind"] == "rule" and r["stage"] == "analysis"][0]
     assert rule["outputs"]["verdict"] == "supports"
-    assert set(rule["parents"]) == {o["record_id"] for o in s.arms.values()}
+    assert set(rule["parents"]) == {r["id"] for r in runs}
+    assert s.tally["treatment"] == {"total": 3, "ok": 3, "hits": 3, "median_effect": 0.3,
+                                    "median_p": 0.01}
+    for arm, hits in (("treatment", 3), ("positive", 3), ("negative", 0)):
+        assert sum(b["hit"] for b in s.branches if b["arm"] == arm) == hits == (
+            s.tally[arm]["hits"])
     # the analyst is told the verdict; nothing it says can change it
     assert "Verdict: supports" in [c for c in router.calls if c[0] == "analysis"][0][1]
 
@@ -156,6 +193,40 @@ async def test_the_hulk_run_is_inconclusive_not_supports(tmp_path):
     text = " ".join(s.verdict_reasons)
     assert "planted on purpose" in text and "fixed by the parameters" in text
     assert s.what_failed.startswith("Result unusable:")
+
+
+async def test_a_noisy_single_seed_no_longer_voids_the_run(tmp_path):
+    """Run 3ce59d2e: one fixed seed made the negative arm fire (p=0.003) and the whole run was
+    thrown away. Across seeds that is one false alarm in three: within what alpha allows."""
+    contract = {**CONTRACT, "alpha": 0.01, "direction": "decrease"}
+    noisy = arms(treatment=(-0.3, 0.0001), positive=(-0.5, 0.0001),
+                 negative=[(-0.075, 0.003), (0.01, 0.6), (0.0, 0.8)])
+    p, *_ = make(tmp_path, [], [noisy], contract=contract)
+    s = await p.run("q")
+    assert s.verdict == "supports" and s.tally["negative"]["hits"] == 1
+    check = next(c for c in s.checks if c["name"] == "Negative control")
+    assert check["passed"] and check["detail"].startswith("False alarm in 1 of 3")
+
+
+async def test_a_boundary_treatment_is_inconclusive_across_seeds(tmp_path):
+    flips = arms(treatment=[(0.3, 0.01), (0.02, 0.6), (0.02, 0.5)],
+                 positive=(0.5, 0.001), negative=(0.02, 0.6))
+    p, *_ = make(tmp_path, [], [flips])
+    s = await p.run("q")
+    assert s.verdict == "inconclusive" and "changes with the seed" in s.verdict_reasons[-1]
+
+
+async def test_failed_branches_are_rolled_back_and_survivors_decide(tmp_path):
+    def one_bad(job):
+        if job.arm == "treatment" and job.rep == 2:
+            return FAIL
+        return GOOD(job)
+    p, store, pid, *_ = make(tmp_path, [], [one_bad])
+    s = await p.run("q")
+    assert s.verdict == "supports" and not s.repaired  # one dead seed is not a broken script
+    bad = [b for b in s.branches if b["status"] == "rolled_back"]
+    assert [(b["id"], b["reason"]) for b in bad] == [("treatment#3", "exit 1")]
+    assert s.tally["treatment"]["ok"] == 2 and s.exit_code == 1
 
 
 async def test_no_preregistration_means_no_verdict(tmp_path):
@@ -282,7 +353,7 @@ async def test_nothing_executes_before_experiment_approval(tmp_path):
     decisions = [Decision("approve"), Decision("reject", "too big"), Decision("approve")]
     p, store, pid, gate, ex, router = make(tmp_path, decisions, [GOOD])
     await p.run("q")
-    assert len(ex.ran) == 3  # the rejected draft never ran; the approved one ran once per arm
+    assert len(ex.ran) == 9  # the rejected draft never ran; the approved one ran 3 arms x 3 seeds
     designs = [c for c in router.calls if c[0] == "experiment_design"]
     assert len(designs) == 2 and "too big" in designs[1][1]
 
@@ -301,17 +372,18 @@ async def test_modify_replaces_the_hypothesis(tmp_path):
     assert s.hypothesis == "My own hypothesis"
 
 
-async def test_failed_run_is_repaired_then_succeeds(tmp_path):
+async def test_a_broken_script_fails_once_then_is_repaired_before_the_fan_out(tmp_path):
     p, store, pid, _, ex, _ = make(tmp_path, [], [FAIL, GOOD])
     s = await p.run("q")
-    assert s.repaired and ex.ran[-1] == ("print('fixed')", "negative")
-    assert len(ex.ran) == 4  # the broken treatment arm stops the round; then all three arms
+    assert s.repaired and ex.ran[-1][0] == "print('fixed')"
+    assert ex.waves == [(1, False), (1, False), (8, False)]  # not 9 crashes: one, then repair
+    assert len(ex.checkpoints) == 2 and ex.checkpoints[1] == "print('fixed')"
     assert s.verdict == "supports"
 
 
 async def test_missing_result_line_triggers_a_repair(tmp_path):
     silent = ExecResult("done\n", "", 0, 0.1, "stub")
-    p, _, _, _, ex, router = make(tmp_path, [], [silent, silent, silent, GOOD])
+    p, _, _, _, ex, router = make(tmp_path, [], [silent, GOOD])
     s = await p.run("q")
     repair = [c for c in router.calls if c[0] == "code_generation"][0][1]
     assert "RESULT_JSON" in repair and s.repaired
@@ -320,7 +392,8 @@ async def test_missing_result_line_triggers_a_repair(tmp_path):
 async def test_failure_after_repair_is_reported_as_failed(tmp_path):
     p, *_ = make(tmp_path, [], [FAIL])
     s = await p.run("q")
-    assert s.verdict == "failed"  # exit code overrides everything
+    assert s.verdict == "failed"  # a script that never runs can't be read, whatever the model says
+    assert len(p.executor.checkpoints) == 3  # first try plus two repairs
 
 
 async def test_repeated_rejection_aborts_and_marks_project_failed(tmp_path):
@@ -336,7 +409,44 @@ async def test_lessons_from_one_run_feed_the_next(tmp_path):
     log2 = ProvenanceLog(store=store, project_id=store.create_project("q2"))
     router2 = StubRouter(log2)
     p2 = Pipeline(router=router2, literature=StubLit(log2), executor=StubExecutor([GOOD]),
-                  gate=ScriptedGate([]), store=store, log=log2, notebook_dir=str(tmp_path))
+                  gate=ScriptedGate([]), store=store, log=log2, notebook_dir=str(tmp_path),
+                  replicates=REPS)
     s2 = await p2.run("q2")
     assert s2.lessons_before == ["keep runs short"]
     assert "keep runs short" in [c for c in router2.calls if c[0] == "hypothesis"][0][1]
+
+
+# --- replay -------------------------------------------------------------------------------
+
+
+def saved_state(store, pid):
+    return json.loads(store.get_project(pid)["state"])
+
+
+async def test_replay_reruns_every_branch_clean_and_matches(tmp_path):
+    p, store, pid, _, ex, _ = make(tmp_path, [], [GOOD])
+    await p.run("q")
+    out = await p.replay(saved_state(store, pid))
+    assert out["total"] == 9 and out["matched"] == 9 and out["base"] == "tag:stub-base"
+    assert ex.waves[-1] == (9, True)  # one wave, all from the clean base, not the checkpoint
+    assert all(i["match"] for i in out["items"])
+    rec = [r for r in store.records(pid) if r["stage"] == "replay"][0]
+    assert rec["kind"] == "rule" and rec["outputs"]["matched"] == 9
+    assert len(rec["parents"]) == 9
+    assert store.kv_get(f"replay:{pid}")["matched"] == 9
+
+
+async def test_replay_reports_a_mismatch_instead_of_hiding_it(tmp_path):
+    p, store, pid, _, ex, _ = make(tmp_path, [], [GOOD])
+    await p.run("q")
+    ex.results = [arms(treatment=(0.31, 0.01), positive=(0.5, 0.001), negative=(0.02, 0.6))]
+    out = await p.replay(saved_state(store, pid))
+    assert out["matched"] == 6 and out["total"] == 9
+    assert {i["id"] for i in out["items"] if not i["match"]} == {
+        "treatment#1", "treatment#2", "treatment#3"}
+
+
+async def test_replay_needs_recorded_runs(tmp_path):
+    p, *_ = make(tmp_path, [], [GOOD])
+    with pytest.raises(ValueError, match="no recorded runs"):
+        await p.replay({"branches": [], "code": "print(1)"})
